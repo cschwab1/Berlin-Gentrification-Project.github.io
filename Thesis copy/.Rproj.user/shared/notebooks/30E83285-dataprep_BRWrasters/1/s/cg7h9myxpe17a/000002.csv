@@ -1,0 +1,4 @@
+"0","brw03_pred <- brw03_krigd$krige_output"
+"0","brw03_pred <- raster(brw03_pred)"
+"0","brw03_pred <- mask(x = brw03_pred, mask = berlin_base)"
+"0","plot(brw03_pred)"

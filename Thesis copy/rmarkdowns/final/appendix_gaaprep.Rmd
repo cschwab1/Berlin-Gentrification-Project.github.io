@@ -1,0 +1,124 @@
+---
+title: "Gutachterausschuss Data Processing (auf deutsch)"
+author: Clyde Schwab
+lang: de
+output: pdf_document
+---
+
+In diesem Dokument beschreibe ich meine Methode, Dateien von dem Gutachterausschuss (GAA) der Berliner Senatsverwaltung für Stadtentwicklung und Wohnen auf der LOR Plannungsräume zu aggregieren. 
+
+##Konfiguration
+
+```{r setup1, message=FALSE}
+# Konfiguration
+library(tidyverse)
+library(sf)
+library(rgdal)
+library(areal)
+library(raster)
+library(automap)
+setwd("~/Desktop/Code/Thesis")
+
+# Funktion um Dateien aus dem FIS Broker herunterzuladen 
+get_X_Y_coordinates <- function(x) {
+  sftype <- as.character(sf::st_geometry_type(x, by_geometry = FALSE))
+  if(sftype == "POINT") {
+    xy <- as.data.frame(sf::st_coordinates(x))
+    dplyr::bind_cols(x, xy)
+  } else {
+    x
+  }
+}
+
+sf_fisbroker <- function(url) {
+  typenames <- basename(url)
+  url <- httr::parse_url(url)
+  url$query <- list(service = "wfs",
+                    version = "2.0.0",
+                    request = "GetFeature",
+                    srsName = "EPSG:25833",
+                    TYPENAMES = typenames)
+  request <- httr::build_url(url)
+  print(request)
+  out <- sf::read_sf(request)
+  out <- sf::st_transform(out, 3035)
+  out <- get_X_Y_coordinates(out)
+  out <- st_as_sf(as.data.frame(out))
+  return(out)
+}
+```
+
+Nach ich die gründsetzliche Packages lade, uploade ich die GAA Dateien zum R.
+
+```{r setup2}
+setClass("num.with.commas")
+setAs("character", "num.with.commas", 
+      function(from) as.numeric(gsub(",", "", from) ) )
+df <- read.csv("~/Desktop/Code/Thesis/gaa_etwsab2000_clean.csv", 
+                         colClasses=c('num.with.commas')) %>% 
+  dplyr::select(1:45) %>% 
+  # ich wähle nur Variablen aus, der mit durchschnittliche Preis zu tun sind. 
+  dplyr::select("Block", "m_2000", "m_2001", "m_2002", "m_2003", "m_2004", "m_2005", 
+                "m_2006", "m_2007", "m_2008", "m_2009", "m_2010", "m_2011",
+                "m_2012", "m_2013", "m_2014", "m_2015", "m_2016", "m_2017", 
+                "m_2018", "m_2019", "m_2020", "m_2021") 
+```
+```{r setup3, eval=FALSE}
+sb <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_rbs_bloecke")
+```
+
+```{r setup4, warning=FALSE, echo=FALSE, message=FALSE}
+sb <-readOGR(dsn="~/Desktop/Code/Thesis/shapefiles/sb.shp") %>% st_as_sf() %>% dplyr::select("blknr", "ewk", "geometry")
+```
+
+Die Dateien ist aggregert pro Jahr auf statistiche Blöcke. Um sie zu interpolieren muss ich sie erstens mit räumlichen Dateien verbinden. Dann wird die Blöcke zu Spitzen umwandelt. 
+
+```{r}
+gaa <- left_join(df, sb, by=c("Block" = "blknr")) %>% 
+  st_as_sf()
+gaa <- st_centroid(gaa) %>% filter(!st_is_empty(.))
+```
+
+Weil es für viele Blöcke es keine Daten gibt und ich nür mit ungerade Jahren interessiert bin, nehme ich die durchschnittliche Preis pro Quadratmeter von einem Jahr und den zwei geraden Jahren auf jeder Seite. Dieser durchschnittliche Preis wird dann mit der statistischen Methode von Kriging zu einem Raster von Berlin interpoliert. 
+
+```{r}
+berlin_base <- readOGR("~/Desktop/Code/Thesis/shapefiles/berlin_sf.shp")
+berlin_template <- raster(extent(berlin_base), 
+                          resolution = 424, 
+                          crs = st_crs(berlin_base)$proj4string)
+bbase <- as(berlin_template, "SpatialPixels")
+
+gaa_calc <- function(col1, col2, col3){
+  newdf <- gaa[c("Block", col1, col2, col3)] %>% st_drop_geometry()
+  newdf$newcol <- rowMeans(newdf[2:4], na.rm = TRUE)
+  newdf <- newdf %>% filter(newcol != "NaN")
+  newdf <- newdf[c("Block", "newcol")]
+  newdf_sf <- left_join(newdf, gaa[-c(2:24)], by=c("Block")) %>% st_as_sf() %>% as_Spatial()
+  crs(newdf_sf) <- "+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs"
+  x <- autoKrige(formula=newcol~1, newdf_sf, new_data=bbase, model = c("Sph", "Exp", "Gau", "Ste", "Nug"))
+  y <- x$krige_output
+  z <- raster(y)
+  out <- mask(x = z, mask = berlin_base)
+  return(out)
+}
+
+gaa01k <- gaa_calc("m_2000", "m_2001", "m_2002")
+gaa03k <- gaa_calc("m_2002", "m_2003", "m_2004") 
+gaa05k <- gaa_calc("m_2004", "m_2005", "m_2006")
+gaa07k <- gaa_calc("m_2006", "m_2007", "m_2008")
+gaa09k <- gaa_calc("m_2008", "m_2009", "m_2010")
+gaa11k <- gaa_calc("m_2010", "m_2011", "m_2012")
+gaa13k <- gaa_calc("m_2012", "m_2013", "m_2014")
+gaa15k <- gaa_calc("m_2014", "m_2015", "m_2016")
+gaa17k <- gaa_calc("m_2016", "m_2017", "m_2018")
+gaa19k <- gaa_calc("m_2018", "m_2019", "m_2020")
+```
+
+
+
+
+
+
+
+
+

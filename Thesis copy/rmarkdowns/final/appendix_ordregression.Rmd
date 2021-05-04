@@ -1,0 +1,147 @@
+---
+title: "Appendix C: Logistic Regression Results"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+library(foreign)
+library(ggplot2)
+library(MASS)
+library(Hmisc)
+library(reshape2)
+library(brant)
+library(did)
+load("~/Desktop/Code/Thesis/Data_for_Analysis/datacomb.Rdata")
+load("~/Desktop/Code/Thesis/Data_for_Analysis/gtable.Rdata")
+load("~/Desktop/Code/Thesis/Data_for_Analysis/blong.Rdata")
+```
+
+```{r}
+load("~/Desktop/Code/Thesis/Data_for_Analysis/didplot.Rdata")
+summary(didtest)
+ggdid(didtest)
+ggdid(did.e)
+ggdid(outdyn)
+```
+
+```{r}
+load("~/Desktop/Code/Thesis/Data_for_Analysis/eg.rda")
+egbyyear <- eg_lor_full %>% dplyr::select(c(1, 27:35))
+egbyyear[is.na(egbyyear)] <- 0
+sapply(egbyyear[2:10], table) %>% t() %>%  kable()
+```
+
+```{r}
+dfL_full$gstatus <- as.factor(dfL_full$gstatus)
+dfL_full <- dfL_full %>% filter(F_IN_KRAFT.x < 2020)
+```
+
+```{r}
+m_simple <- MASS::polr(gstatus ~ treattime, data = dfL_full, Hess=TRUE)
+equatiomatic::extract_eq(m_simple)
+summary(m_simple)
+brant(m_simple)
+(ctables <- coef(summary(m_simple)))
+p <- pnorm(abs(ctables[, "t value"]), lower.tail = FALSE) * 2
+ctables <- cbind(ctables, "p value" = p)
+as.data.frame(ctables)
+(ci <- confint(m_simple))
+confint.default(m_simple)
+exp(coef(m_simple))
+exp(cbind(OR = coef(m_simple), ci))
+```
+
+```{r}
+df1 <- dfL_full %>% filter(dfL_full$is_eg == 1)
+m_1 <- polr(gstatus ~ treattime, data = df1, Hess=TRUE)
+equatiomatic::extract_eq(m_1)
+summary(m_1)
+brant(m_1)
+(ctables <- coef(summary(m_1)))
+p <- pnorm(abs(ctables[, "t value"]), lower.tail = FALSE) * 2
+ctables <- cbind(ctables, "p value" = p)
+as.data.frame(ctables)
+(ci <- confint(m_1))
+confint.default(m_1)
+exp(coef(m_1))
+exp(cbind(OR = coef(m_1), ci))
+```
+
+```{r}
+df2 <- dfL_full %>% filter(dfL_full$is_eg != 1)
+m_500 <- polr(gstatus ~ treattime500, data = df2, Hess=TRUE)
+equatiomatic::extract_eq(m_500)
+summary(m_500)
+brant(m_500)
+(ctables <- coef(summary(m_500)))
+p <- pnorm(abs(ctables[, "t value"]), lower.tail = FALSE) * 2
+ctables <- cbind(ctables, "p value" = p)
+as.data.frame(ctables)
+(ci <- confint(m_500))
+confint.default(m_500)
+exp(coef(m_500))
+exp(cbind(OR = coef(m_500), ci))
+```
+
+```{r}
+df3 <- df2 %>% filter(df2$is_within_500eg != 0)
+m_500_1 <- polr(gstatus ~ treattime500, data = df3, Hess=TRUE)
+equatiomatic::extract_eq(m_500_1)
+summary(m_500_1)
+brant(m_500_1)
+(ctables <- coef(summary(m_500_1)))
+p <- pnorm(abs(ctables[, "t value"]), lower.tail = FALSE) * 2
+ctables <- cbind(ctables, "p value" = p)
+as.data.frame(ctables) %>% kable()
+(ci <- confint(m_500_1))
+confint.default(m_500_1)
+exp(coef(m_500_1))
+exp(cbind(OR = coef(m_500_1), ci))
+
+set.seed(456)
+N.train <- ceiling(0.7 * nrow(df3))
+N.test <- nrow(df3) - N.train
+trainset <- sample(seq_len(nrow(df3)), N.train)
+testset <- setdiff(seq_len(nrow(df3)), trainset)
+
+m_500_1t <- polr(gstatus ~ treattime500, data = df3, Hess=TRUE, subset = trainset)
+summary(m_500_1t)
+
+res <- residuals(m_500_1t)
+# ensure that x- and y-axis have the same range
+pred <- m_500_1t$fitted.values
+obs <- df3[trainset, "gstatus"]
+# determine maximal range
+val.range <- range(pred, obs)
+plot(obs, pred, 
+    xlim = val.range, ylim = val.range,  
+    xlab = "observed gstatus", 
+    ylab = "predicted gstatus",
+    main = "Residuals of the linear model for the training data")
+# show ideal prediction as a diagonal
+abline(0,1, col = "red")
+# add residuals to the plot
+
+
+qqnorm(df3$treattime500, pch = 1, frame = FALSE)
+qqline(df3$treattime500, col = "steelblue", lwd = 2)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

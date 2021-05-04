@@ -1,0 +1,4 @@
+"0","gaa <- left_join(df, sb, by=c(""Block"" = ""blknr"")) %>% "
+"0","  st_as_sf()"
+"0","gaa <- st_centroid(gaa) %>% filter(!st_is_empty(.))"
+"2","st_centroid assumes attributes are constant over geometries of x"

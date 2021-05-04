@@ -1,0 +1,243 @@
+---
+title: "Work Sample"
+author: "Clyde Schwab"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("~/Desktop/Code/Thesis")
+```
+
+This document represents a small sample of work I've done recently related to data cleaning and analysis. The first section focuses on cleaning data and generating data I use for my thesis, drawn from two demographic surveys and a proprietary datasets from the Berlin Senate's Office of Urban Planning and Development. I detail a small sample of loading and cleaning done to this data, and then demonstrate how I use it to create a novel, conceptually-driven approach to typologizing stages of gentrification according to the invasion-succession model. 
+
+In the second section, I provide a very brief sample of statistical analysis I've done, both for my thesis and for other courses. 
+
+If you have any questions let me know, and I look forward to hearing from you! 
+
+## 1: Data Loading and Cleaning
+
+To create my gentrification typology, I used data from the resident register (Einwohnerregister), a survey called Monitoring Social Urban Development (MSS, Monitoring Sozialestadtentwicklung), and data on the average sale price on residential units. This data was largely aggregated to the [LOR Planning Region area](https://www.stadtentwicklung.berlin.de/planen/basisdaten_stadtentwicklung/lor/), but some years needed to be arealy interpolated. For this example, I'll show how I processed data from two years: 2009 and 2011.
+
+The data, while publicly available in reports since the year 2000, is not processed into csv files, and I instead acquired these by reaching out to representatives at the Urban Development office. While briefly cleaned in each year, the names of the variables vary substantially over the years and must thus be standardized. 
+
+### 1.1 MSS Data
+Here's the basic process for the MSS report data: 
+```{r MSS, message=FALSE, warning=FALSE}
+library(tidyverse)
+
+##### MSS 2009
+mss_2009 <- read.csv("~/Desktop/Code/Thesis/demographic/2009_MSS_cut.csv")
+mss_2009 <- mss_2009[1:447,]
+mss_2009 <- mss_2009 %>% 
+  dplyr::select("Nr.",
+                "Planungsraum",
+                "Dynamik.2",
+                "E.11",
+                "E.12",
+                "E.13",
+                "E.14",
+                "E.17",
+                "E.15",
+                "Status.1",
+                "E.22", "E.23") %>% 
+  rename(
+    WA = Dynamik.2,
+    turk = E.11,
+    arab = E.12,
+    easteuro = E.13,
+    pol = E.17,
+    yugo = E.14,
+    eu = E.15,
+    unemp = Status.1,
+    gwelf = E.22,
+    awelf = E.23
+  )
+mss_2009[,2:12] <- lapply(mss_2009[,2:12], as.numeric)
+mss_2009$aus_noneu <- mss_2009$turk + mss_2009$arab + mss_2009$easteuro + mss_2009$pol + mss_2009$yugo
+mss_2009$welf <- mss_2009$gwelf + mss_2009$awelf
+mss_2009 <- dplyr::select(mss_2009, 
+                   "Nr.",
+                   "Planungsraum",
+                   "WA",
+                   "aus_noneu",
+                   "eu",
+                   "welf",
+                   "unemp")
+
+
+########## MSS 2011
+mss_2011 <- read.csv("~/Desktop/Code/Thesis/demographic/2011_MSS_cut.csv")
+mss_2011 <- mss_2011[1:447,]
+mss_2011 <- mss_2011 %>% 
+  dplyr::select("Gebiet",
+                "Raumid",
+                "Dynamik2",
+                "E11",
+                "E12",
+                "E13",
+                "E14",
+                "E17",
+                "E15",
+                "E22",
+                "E23",
+                "Status1") %>%
+  rename(    WA = Dynamik2,
+             turk = E11,
+             arab = E12,
+             easteuro = E13,
+             pol = E17,
+             yugo = E14,
+             eu = E15,
+             unemp = Status1,
+             gwelf = E22,
+             awelf = E23)
+mss_2011[,2:12] <- lapply(mss_2011[,2:12], as.numeric)
+mss_2011$aus_noneu <- mss_2011$turk + mss_2011$arab + mss_2011$easteuro + mss_2011$pol + mss_2011$yugo
+mss_2011$welf <- mss_2011$gwelf + mss_2011$awelf
+mss_2011 <- dplyr::select(mss_2011, 
+                   "Raumid",
+                   "Gebiet",
+                   "WA",
+                   "aus_noneu",
+                   "eu",
+                   "welf",
+                   "unemp")
+```
+
+### 1.2 Einwohnerregister Data
+
+Resident register data has similarly heterogeneous variable names (though this isn't shown in the example). Data is available for download  [here](https://daten.berlin.de/tags/kleinr%C3%A4umige-einwohnerzahl). 
+
+```{r eval=FALSE}
+# 2011
+w_2011 <- read.table("~/Desktop/Code/Thesis/EinR/2011/WHNDAUER2010_Matrix.csv", header=TRUE, sep = ";")
+aus_2011 <- read.table("~/Desktop/Code/Thesis/EinR/2011/EWR201012A_Matrix.csv", header=TRUE, sep = ";")
+ein_2011 <- read.table("~/Desktop/Code/Thesis/EinR/2011/EWR201012E_Matrix.csv", header=TRUE, sep = ";")
+einW11 <- merge(ein_2011, aus_2011, by="RAUMID") %>% merge(w_2011, by="RAUMID")
+einW11 <- einW11 %>% mutate(E_0U6 = E_U1 + E_1U6) %>%
+  dplyr::select("RAUMID", "E_E", 
+                 # helpful age ranges
+                 "E_18U25", "E_25U55", "E_U1", "E_0U6",
+                 # foreigners 
+                 "E_A", 
+                 # people who have been living in the neighborhood for 5-10 years
+                 "DAU10", "DAU5", "PDAU10", "PDAU5")
+einW11$PDAU10 <- gsub(",", ".", einW11$PDAU10) %>% as.numeric()
+einW11$PDAU5 <- gsub(",", ".", einW11$PDAU5) %>% as.numeric()
+rm(ein_2011, aus_2011, w_2011)
+
+# 2009
+w_2009 <- read.table("~/Desktop/Code/Thesis/EinR/2009/WHNDAUER2008_Matrix.csv", header=TRUE, sep = ";")
+aus_2009 <- read.table("~/Desktop/Code/Thesis/EinR/2009/EWR200812A_Matrix.csv", header=TRUE, sep = ";")
+ein_2009 <- read.table("~/Desktop/Code/Thesis/EinR/2009/EWR200812E_Matrix.csv", header=TRUE, sep = ";")
+einW09 <- merge(ein_2009, aus_2009, by="RAUMID") %>% merge(w_2009, by="RAUMID")
+einW09 <- einW09 %>% mutate(E_0U6 = E_U1 + E_1U6) %>%
+  dplyr::select("RAUMID", "E_E", 
+                 # helpful age ranges
+                 "E_18U25", "E_25U55", "E_U1", "E_0U6",
+                 # foreigners 
+                 "E_A", 
+                 # people who have been living in the neighborhood for 5-10 years
+                 "DAU10", "DAU5", "PDAU10", "PDAU5")
+einW09$PDAU10 <- gsub(",", ".", einW09$PDAU10) %>% as.numeric()
+einW09$PDAU5 <- gsub(",", ".", einW09$PDAU5) %>% as.numeric()
+rm(ein_2009, aus_2009, w_2009)
+```
+
+After interpolation, the data is aggregated to the LOR planning area level. 
+```{r}
+
+```
+
+### 1.3 Sale-price data
+
+Finally, the slightly more involved process of average price per area, which requires a more involved process of interpolation via kriging. While due to licensing issues I can't share the base data I use in this interpolation, the following code shows (1) how I load and clean the sale-price data, (2) how I download shapefiles from the Berlin data portal for interpolation, and (3) the function I use to interpolate the data. 
+
+```{r}
+##### Step 1: Loading GAA data
+setClass("num.with.commas")
+setAs("character", "num.with.commas", 
+      function(from) as.numeric(gsub(",", "", from) ) )
+gaa <- read.csv("~/Desktop/Code/Thesis/gaa_etwsab2000_clean.csv", 
+                         colClasses=c('num.with.commas')) %>% 
+  dplyr::select(1:45) %>% 
+  dplyr::select("Block", "m_2000", "m_2001", "m_2002", "m_2003", "m_2004", "m_2005", 
+                "m_2006", "m_2007", "m_2008", "m_2009", "m_2010", "m_2011",
+                "m_2012", "m_2013", "m_2014", "m_2015", "m_2016", "m_2017", 
+                "m_2018", "m_2019", "m_2020", "m_2021") 
+
+gaa <- left_join(gaa, sb, by=c("Block" = "blknr")) %>% 
+  st_as_sf() 
+gaa <- st_centroid(gaa) %>% filter(!st_is_empty(.))
+
+##### Step 2: Functions required to download spatial data: 
+get_X_Y_coordinates <- function(x) {
+  sftype <- as.character(sf::st_geometry_type(x, by_geometry = FALSE))
+  if(sftype == "POINT") {
+    xy <- as.data.frame(sf::st_coordinates(x))
+    dplyr::bind_cols(x, xy)
+  } else {
+    x
+  }
+}
+
+sf_fisbroker <- function(url) {
+  typenames <- basename(url)
+  url <- httr::parse_url(url)
+  url$query <- list(service = "wfs",
+                    version = "2.0.0",
+                    request = "GetFeature",
+                    srsName = "EPSG:25833",
+                    TYPENAMES = typenames)
+  request <- httr::build_url(url)
+  print(request)
+  out <- sf::read_sf(request)
+  out <- sf::st_transform(out, 3035)
+  out <- get_X_Y_coordinates(out)
+  out <- st_as_sf(as.data.frame(out))
+  return(out)
+}
+
+# Downloading file for statistical blocks
+sb <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_rbs_bloecke")
+
+##### Step 3: Interpolation 
+
+# creating base raster
+berlin_base <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_lor_plan") %>% st_union()
+berlin_template <- raster(extent(berlin_base), 
+                          # 300 is the length of three square Berlin blocks (the average size of a berlin block is 45,000 sqm)
+                          resolution = 367, 
+                          crs = st_crs(berlin_base)$proj4string)
+bbase <- as(berlin_template, "SpatialPixels")
+
+# function to use kriging to interpolate average price over three years
+gaa_calc <- function(col1, col2, col3){
+  newdf <- gaa[c("Block", col1, col2, col3)] %>% st_drop_geometry()
+  newdf$newcol <- rowMeans(newdf[2:4], na.rm = TRUE)
+  newdf <- newdf %>% filter(newcol != "NaN")
+  newdf <- newdf[c("Block", "newcol")]
+  newdf_sf <- left_join(newdf, gaa[-c(2:24)], by=c("Block")) %>% st_as_sf() %>% as_Spatial()
+  crs(newdf_sf) <- "+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs"
+  x <- autoKrige(formula=newcol~1, newdf_sf, new_data=bbase, model = c("Sph", "Exp", "Gau", "Ste", "Nug"))
+  y <- x$krige_output
+  z <- raster(y)
+  out <- mask(x = z, mask = berlin_base)
+  return(out)
+}
+
+# interpolating over the two previous target years
+gaa09k <- gaa_calc("m_2008", "m_2009", "m_2010")
+gaa11k <- gaa_calc("m_2010", "m_2011", "m_2012")
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

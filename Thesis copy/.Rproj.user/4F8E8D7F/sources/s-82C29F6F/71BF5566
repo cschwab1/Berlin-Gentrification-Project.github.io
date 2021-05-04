@@ -1,0 +1,27 @@
+{
+    "id": "71BF5566",
+    "path": "~/Desktop/Code/Thesis/rscripts/final/3.2_DiD_analysis.R",
+    "project_path": "rscripts/final/3.2_DiD_analysis.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1618804963304.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "18,36",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1619282675,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1619282675087,
+    "read_only": false,
+    "read_only_alternatives": []
+}

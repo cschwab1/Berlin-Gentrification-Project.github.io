@@ -1,0 +1,186 @@
+########################################
+# Thesis Script I: BRW Processing
+########################################
+
+library(automap)
+library(tidyverse)
+library(httr)
+library(raster)
+library(sf)
+library(tmap)
+library(rgdal)
+library(geojsonsf)
+library(dismo)
+library(cowplot)
+
+get_X_Y_coordinates <- function(x) {
+  sftype <- as.character(sf::st_geometry_type(x, by_geometry = FALSE))
+  if(sftype == "POINT") {
+    xy <- as.data.frame(sf::st_coordinates(x))
+    dplyr::bind_cols(x, xy)
+  } else {
+    x
+  }
+}
+
+sf_fisbroker <- function(url) {
+  typenames <- basename(url)
+  url <- httr::parse_url(url)
+  url$query <- list(service = "wfs",
+                    version = "2.0.0",
+                    request = "GetFeature",
+                    srsName = "EPSG:25833",
+                    TYPENAMES = typenames)
+  request <- httr::build_url(url)
+  print(request)
+  out <- sf::read_sf(request)
+  out <- sf::st_transform(out, 3035)
+  out <- get_X_Y_coordinates(out)
+  out <- st_as_sf(as.data.frame(out))
+  return(out)
+}
+
+#brw2004 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2004")
+#brw2003 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2003") 
+#brw2002 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2002")
+#load(url("https://userpage.fu-berlin.de/soga/300/30100_data_sets/berlin_district.RData"))
+#berlin_base <- st_transform(berlin.sf, 3035)
+#sb <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_rbs_bloecke")
+#st_write(sb, dsn="~/Desktop/Code/Thesis/shapefiles/sb.shp")
+sb <-readOGR(dsn="shapefiles/sb.shp") %>% st_as_sf()
+
+brw2004 <- readOGR(dsn = "~/Desktop/Code/Thesis/brw_shapefiles/brw2004.shp")
+brw2003 <- readOGR(dsn = "~/Desktop/Code/Thesis/brw_shapefiles/brw2003.shp")
+brw2002 <- readOGR(dsn = "~/Desktop/Code/Thesis/brw_shapefiles/brw2002.shp")
+berlin_base <- readOGR("~/Desktop/Code/Thesis/shapefiles/berlin_sf.shp")
+
+# functions to make processing Bodenrichtwert data easier
+brw_processing <- function(x){
+  # casts objects from SpatialPolygons to sf dataframe
+  y <- x %>% st_as_sf() %>%
+    st_transform(3035) %>%
+    # filters out only residential areas,
+    dplyr::filter(NUTZUNG == "W - Wohngebiet") %>%
+    # only selects relevant columns
+    dplyr::select(gml_id, BRW, geometry) %>%
+    # removes empty geometries
+    filter(!st_is_empty(.))
+  # removes outliers from data beyond the .95 threshold on a normal distribution
+  val <- y$BRW
+  yUL <- val %>% quantile(.95, na.rm = TRUE)
+  out1 <- y %>%
+    dplyr::filter(BRW < yUL)
+  # casts the geometry of the dataframe from polygons to points for easier interpolation
+  out <- st_centroid(out1)
+  return(out)
+}
+
+# this really should be with fewer lines using lapply();
+# as such, under construction.
+brw2004 <- brw_processing(brw2004)
+brw2003 <- brw_processing(brw2003)
+brw2002 <- brw_processing(brw2002)
+
+brw2003comb <- rbind(brw2002, brw2003, brw2004) %>% as_Spatial()
+
+berlin_template <- raster(extent(berlin_base), 
+                          resolution = 424, 
+                          crs = st_crs(berlin_base)$proj4string)
+
+bbase <- as(berlin_template, "SpatialPixels")
+crs(brw2003comb) <- crs(bbase) <- "+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs"
+brw03_krigd <- autoKrige(formula=BRW~1, brw2003comb, new_data=bbase, model = c("Sph", "Exp", "Gau", "Ste", "Nug"))
+
+brw03_pred <- brw03_krigd$krige_output
+brw03_pred <- raster(brw03_pred)
+brw03_pred <- mask(x = brw03_pred, mask = berlin_base)
+
+brw_calc <- function(y1, y2, y3){
+  df <- rbind(y1, y2, y3) %>% as_Spatial()
+  crs(df) <- "+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs"
+  x <- autoKrige(formula=BRW~1, df, new_data=bbase, model = c("Sph", "Exp", "Gau", "Ste", "Nug"))
+  y <- x$krige_output
+  z <- raster(y)
+  out <- mask(x = z, mask = berlin_base)
+  return(out)
+}
+
+#brw2020 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2020") %>% brw_processing()
+#brw2019 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2019") %>% brw_processing()
+#brw2018 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2018") %>% brw_processing()
+#brw2017 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2017") %>% brw_processing()
+#brw2016 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2016") %>% brw_processing()
+#brw2015 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2015") %>% brw_processing()
+#brw2014 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2014") %>% brw_processing()
+#brw2013 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2013") %>% brw_processing()
+#brw2012 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2012") %>% brw_processing()
+#brw2011 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2011") %>% brw_processing()
+#brw2010 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2010") %>% brw_processing()
+#brw2009 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2009") %>% brw_processing()
+#brw2008 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2008") %>% brw_processing()
+#brw2007 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2007") %>% brw_processing()
+#brw2006 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2006") %>% brw_processing()
+#brw2005 <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_brw_2005") %>% brw_processing()
+
+brw2020 <- readOGR(dsn = "~/Desktop/Code/Thesis/brw_shapefiles/brw2020.shp") %>% st_as_sf()
+brw2019 <- readOGR(dsn = "~/Desktop/Code/Thesis/brw_shapefiles/brw2019.shp") %>% st_as_sf()
+brw2018 <- readOGR(dsn = "~/Desktop/Code/Thesis/brw_shapefiles/brw2018.shp") %>% st_as_sf()
+brw2017 <- readOGR(dsn = "~/Desktop/Code/Thesis/brw_shapefiles/brw2017.shp") %>% st_as_sf()
+brw2016 <- readOGR(dsn = "~/Desktop/Code/Thesis/brw_shapefiles/brw2016.shp") %>% st_as_sf()
+brw2015 <- readOGR(dsn = "~/Desktop/Code/Thesis/brw_shapefiles/brw2015.shp") %>% st_as_sf()
+brw2014 <- readOGR(dsn = "~/Desktop/Code/Thesis/brw_shapefiles/brw2014.shp") %>% st_as_sf()
+brw2013 <- readOGR(dsn = "~/Desktop/Code/Thesis/brw_shapefiles/brw2013.shp") %>% st_as_sf()
+brw2009 <- readOGR(dsn = "~/Desktop/Code/Thesis/brw_shapefiles/brw2009.shp") %>% st_as_sf()
+brw2008 <- readOGR(dsn = "~/Desktop/Code/Thesis/brw_shapefiles/brw2008.shp") %>% st_as_sf()
+brw2007 <- readOGR(dsn = "~/Desktop/Code/Thesis/brw_shapefiles/brw2007.shp") %>% st_as_sf()
+brw2006 <- readOGR(dsn = "~/Desktop/Code/Thesis/brw_shapefiles/brw2006.shp") %>% st_as_sf()
+brw2005 <- readOGR(dsn = "~/Desktop/Code/Thesis/brw_shapefiles/brw2005.shp") %>% st_as_sf()
+
+#brw2003_krigd <- brw03_pred
+#brw2005_krigd <- brw_calc(brw2004, brw2005, brw2006)
+#brw2007_krigd <- brw_calc(brw2006, brw2007, brw2008)
+#brw2009_krigd <- brw_calc(brw2008, brw2009, brw2010)
+#brw2011_krigd <- brw_calc(brw2010, brw2011, brw2012)
+#brw2013_krigd <- brw_calc(brw2012, brw2013, brw2014)
+#brw2015_krigd <- brw_calc(brw2014, brw2015, brw2016)
+#brw2017_krigd <- brw_calc(brw2016, brw2017, brw2018)
+#brw2019_krigd <- brw_calc(brw2018, brw2019, brw2020)
+
+load(file = "~/Desktop/Code/Thesis/BRW_Krigd_rda/brw2003_krigd.rda")
+load(file = "~/Desktop/Code/Thesis/BRW_Krigd_rda/brw2005_krigd.rda")
+load(file = "~/Desktop/Code/Thesis/BRW_Krigd_rda/brw2007_krigd.rda")
+load(file = "~/Desktop/Code/Thesis/BRW_Krigd_rda/brw2009_krigd.rda")
+load(file = "~/Desktop/Code/Thesis/BRW_Krigd_rda/brw2011_krigd.rda")
+load(file = "~/Desktop/Code/Thesis/BRW_Krigd_rda/brw2013_krigd.rda")
+load(file = "~/Desktop/Code/Thesis/BRW_Krigd_rda/brw2015_krigd.rda")
+load(file = "~/Desktop/Code/Thesis/BRW_Krigd_rda/brw2017_krigd.rda")
+load(file = "~/Desktop/Code/Thesis/BRW_Krigd_rda/brw2019_krigd.rda")
+
+brw03plot <- qtm(brw2003_krigd, title="BRW 2003")
+brw05plot <- qtm(brw2005_krigd, title="BRW 2005")
+brw07plot <- qtm(brw2007_krigd, title="BRW 2007")
+brw09plot <- qtm(brw2009_krigd, title="BRW 2009")
+brw11plot <- qtm(brw2011_krigd, title="BRW 2011")
+brw13plot <- qtm(brw2013_krigd, title="BRW 2013")
+brw15plot <- qtm(brw2015_krigd, title="BRW 2015")
+brw17plot <- qtm(brw2017_krigd, title="BRW 2017")
+brw19plot <- qtm(brw2019_krigd, title="BRW 2019")
+brw03thru19map <- tmap_arrange(brw03plot, brw05plot, brw07plot, brw09plot, brw11plot, brw13plot, brw15plot, brw17plot, brw19plot)
+brw03thru19map
+
+brw05change <- brw2005_krigd - brw2003_krigd
+brw07change <- brw2007_krigd - brw2005_krigd
+brw09change <- brw2009_krigd - brw2007_krigd
+brw11change <- brw2011_krigd - brw2009_krigd
+brw13change <- brw2013_krigd - brw2011_krigd
+brw15change <- brw2015_krigd - brw2013_krigd
+brw17change <- brw2017_krigd - brw2015_krigd
+brw19change <- brw2019_krigd - brw2017_krigd
+brw03thru19change <- brw2019_krigd - brw2003_krigd
+brwchangelist <- list(brw05change, brw07change, brw09change, brw11change, brw13change, brw15change, brw17change, brw19change, brw03thru19change)
+brwchangemap <- lapply(brwchangelist, qtm)
+brwchangemap %>% tmap_arrange()
+
+changestack <- raster::stack(brw05change, brw07change, brw09change, brw11change, brw13change, brw15change, brw17change, brw19change, brw03thru19change)
+brwchange <- as.data.frame(changestack)
+

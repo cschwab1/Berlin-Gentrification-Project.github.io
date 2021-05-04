@@ -1,0 +1,4 @@
+"0","#unclear why this is necessary, but kriging won't complete unless the CRSs are reassigned. "
+"0","bbase <- as(berlin_template, ""SpatialPixels"")"
+"0","crs(brw2003comb) <- crs(bbase) <- ""+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs"""
+"0","brw03_krigd <- autoKrige(formula=BRW~1, brw2003comb, new_data=bbase, model = c(""Sph"", ""Exp"", ""Gau"", ""Ste"", ""Nug""))"

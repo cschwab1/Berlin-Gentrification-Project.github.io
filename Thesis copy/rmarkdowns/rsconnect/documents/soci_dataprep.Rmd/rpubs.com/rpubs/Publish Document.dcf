@@ -1,0 +1,10 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/742167/39c1a3f3816e4bb0bd12dc6259c9f62a
+bundleId: https://api.rpubs.com/api/v1/document/742167/39c1a3f3816e4bb0bd12dc6259c9f62a
+url: http://rpubs.com/cschwab98/742167
+when: 1616543360.26212

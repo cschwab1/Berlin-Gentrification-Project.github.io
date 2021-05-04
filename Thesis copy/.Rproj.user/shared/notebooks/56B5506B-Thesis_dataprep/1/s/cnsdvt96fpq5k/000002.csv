@@ -1,0 +1,5 @@
+"0","krigrmse <- rep(NA, 5)"
+"0","autok <- autofitVariogram(formula=BRW~1, brw03, model = vgm()$short)"
+"2","Error in autofitVariogram(formula = BRW ~ 1, brw03, model = vgm()$short) : 
+  could not find function ""autofitVariogram""
+"

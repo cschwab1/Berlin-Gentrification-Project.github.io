@@ -1,0 +1,151 @@
+---
+title: "Appendix D: Spatial Autocorrelation"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+load("~/Desktop/Code/Thesis/Data_for_Analysis/datacomb.Rdata")
+load("~/Desktop/Code/Thesis/Data_for_Analysis/bfinal.Rdata")
+load("~/Desktop/Code/Thesis/Data_for_Analysis/gtable.Rdata")
+load("~/Desktop/Code/Thesis/Data_for_Analysis/blong.Rdata")
+library(tidyverse)
+library(tidycensus)
+library(sf)
+library(tigris)
+library(tmap)
+library(sp)
+library(spdep)
+library(rmapshaper)
+library(rgdal)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+lor <- st_as_sf(readOGR("~/Desktop/Code/Thesis/shapefiles/lor.shp")) %>% rename(RAUMID = gml_id)
+lor$RAUMID <- as.numeric(lor$RAUMID) 
+
+# joining objects to shapefile
+b_sf <- left_join(bfinal, lor, by=c("RAUMID")) %>% st_as_sf()
+b_sf$gcode[is.na(b_sf$gcode)] <- 0
+bwhole <- st_cast(lor, to="POLYGON")
+
+bL_sf <- left_join(dfL_full, lor, by=c("RAUMID")) %>% st_as_sf()
+bL_sf$gstatus <- as.factor(bL_sf$gstatus)
+```
+
+```{r}
+bw <- poly2nb(b_sf, queen=T)
+sacw<-nb2listw(bw, style="W", zero.policy = TRUE)
+
+coo <- coordinates(as_Spatial(b_sf))
+k1 <- knn2nb(knearneigh(coo))
+critical.threshold <- max(unlist(nbdists(k1,coo)))
+
+nb.dist.band <- dnearneigh(coo, 0, critical.threshold)
+distances <- nbdists(nb.dist.band,coo)
+distances[1]
+invd1 <- lapply(distances, function(x) (1/x))
+invd1a <- lapply(distances, function(x) (1/(x/100)))
+invd.weights <- nb2listw(nb.dist.band,glist = invd1a,style = "B")
+
+moran.mc(b_sf$gcode, invd.weights, nsim=200)
+b.dist  <-  dnearneigh(coo, 0, 50000)  
+```
+
+```{r}
+length <- 9
+y <- bL_sf
+y$gstatus <- as.numeric(as.character(y$gstatus))
+x <- split(y, y$Year)
+x03 <- x[[1]]
+x05 <- x[[2]]
+x07 <- x[[3]]
+x09 <- x[[4]]
+x11 <- x[[5]]
+x13 <- x[[6]]
+x15 <- x[[7]]
+x17 <- x[[8]]
+x19 <- x[[9]]
+
+morlist <- vector(mode = "list", length = length)
+morlist[[1]] <- moran.mc(x03$gstatus, invd.weights, nsim=200)
+morlist[[2]] <- moran.mc(x05$gstatus, invd.weights, nsim=200)
+morlist[[3]] <- moran.mc(x07$gstatus, invd.weights, nsim=200)
+morlist[[4]] <- moran.mc(x09$gstatus, invd.weights, nsim=200)
+morlist[[5]] <- moran.mc(x11$gstatus, invd.weights, nsim=200)
+morlist[[6]] <- moran.mc(x13$gstatus, invd.weights, nsim=200)
+morlist[[7]] <- moran.mc(x15$gstatus, invd.weights, nsim=200)
+morlist[[8]] <- moran.mc(x17$gstatus, invd.weights, nsim=200)
+morlist[[9]] <- moran.mc(x19$gstatus, invd.weights, nsim=200)
+
+m.1 <- moran.mc(x03$gstatus, invd.weights, nsim=500)
+plot(m.1, main="", las=1)
+
+m03 <- tidy(morlist[[1]])
+m05 <- tidy(morlist[[2]])
+m07 <- tidy(morlist[[3]])
+m09 <- tidy(morlist[[4]])
+m11 <- tidy(morlist[[5]])
+m13 <- tidy(morlist[[6]]) 
+m15 <- tidy(morlist[[7]])
+m17 <- tidy(morlist[[8]])
+m19 <- tidy(morlist[[9]])
+m.ave <- rbind(m03, m05, m07, m09, m11, m13, m15, m17, m19)
+
+%>% t() %>% as.data.frame()
+m.ave <- m.ave[1:2,]
+m.ave <- sapply(m.ave, as.numeric) %>% as.data.frame()
+m.ave$avg <- rowMeans(m.ave)
+
+m03 <- poly2nb(x[[1]], queen=T)
+m05 <- poly2nb(x[[2]], queen=T)
+m07 <- poly2nb(x[[3]], queen=T)
+m09 <- poly2nb(x[[4]], queen=T)
+m11 <- poly2nb(x[[5]], queen=T)
+m13 <- poly2nb(x[[6]], queen=T)
+m15 <- poly2nb(x[[7]], queen=T)
+m17 <- poly2nb(x[[8]], queen=T)
+m19 <- poly2nb(x[[9]], queen=T)
+mlist <- list(m03, m05, m07, m09, m11, m13, m15, m17, m19)
+
+wlist <- vector(mode = "list", length = length)
+wlist[[1]]<-nb2listw(mlist[[1]], style="W", zero.policy = TRUE)
+wlist[[2]]<-nb2listw(mlist[[2]], style="W", zero.policy = TRUE)
+wlist[[3]]<-nb2listw(mlist[[3]], style="W", zero.policy = TRUE)
+wlist[[4]]<-nb2listw(mlist[[4]], style="W", zero.policy = TRUE)
+wlist[[5]]<-nb2listw(mlist[[5]], style="W", zero.policy = TRUE)
+wlist[[6]]<-nb2listw(mlist[[6]], style="W", zero.policy = TRUE)
+wlist[[7]]<-nb2listw(mlist[[7]], style="W", zero.policy = TRUE)
+wlist[[8]]<-nb2listw(mlist[[8]], style="W", zero.policy = TRUE)
+wlist[[9]]<-nb2listw(mlist[[9]], style="W", zero.policy = TRUE)
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```

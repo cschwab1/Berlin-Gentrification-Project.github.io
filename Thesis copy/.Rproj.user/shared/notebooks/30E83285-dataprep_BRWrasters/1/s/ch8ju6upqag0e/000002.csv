@@ -1,0 +1,4 @@
+"0","berlin_template <- raster(extent(berlin_base), "
+"0","                          resolution = 424, "
+"0","                          crs = st_crs(berlin_base)$proj4string)"
+"2","Discarded datum Unknown based on GRS80 ellipsoid in Proj4 definition"
