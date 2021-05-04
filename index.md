@@ -1,10 +1,12 @@
-## Welcome to GitHub Pages
+# Welcome! 
 
-You can use the [editor on GitHub](https://github.com/cschwab1/Berlin-Gentrification-Project/edit/gh-pages/index.md) to maintain and preview the content for your website in Markdown files.
+For my BA Thesis Project, I analyze a range of demographic and real-estate data to generate a novel conceptually driven typology of gentrification to evaluate localized anti-displacement measures in Berlin. The full report will be published to this page by the end of May, but how I gathered, cleaned, and analyzed data for this project is described here.
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+Broadly, I've organized this page according to the basic steps taken for my project. Section 1 is centered on four scripts I used to load and clean data into my 447 units of study and 10 periods of study. In section 1.1-1.3 I assemble the data used to typologize gentrification in Berlin, and section 1.4 I clean and prepare data on Berlin's community protection areas (_Erhaltungsverordnungen_), the treatment I am studying. In section 2 I generate novel data and further convert it to an analyzable format, and in each page of section 3 I detail different methods of statistical analysis and causal inference I use to evaluate the effects of Berlin's community protection areas on gentrification. Section 4 is devoted to generating basic visualizations I use in my final report. 
 
-### Markdown
+If you have any feedback or questions about this project, don't hesitate to email me at [cschwab1@uchicago.edu](url), I'd love to hear from you! 
+
+## Section 1
 
 Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
 
