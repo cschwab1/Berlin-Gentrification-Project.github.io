@@ -1,4 +1,0 @@
-"0","brw2005_krigd <- brw_calc(brw2004, brw2005, brw2006)
-"
-"2","Error in rbind(y1, y2, y3) : object 'brw2004' not found
-"

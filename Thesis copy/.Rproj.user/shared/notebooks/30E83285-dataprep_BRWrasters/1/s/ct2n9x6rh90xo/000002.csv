@@ -1,7 +1,0 @@
-"0","library(automap)
-"
-"2","Error: package or namespace load failed for ‘automap’:
- package slot missing from signature for generic ‘coerce’
-and classes STFDF, RasterBrick
-cannot use with duplicate class names (the package may need to be re-installed)
-"

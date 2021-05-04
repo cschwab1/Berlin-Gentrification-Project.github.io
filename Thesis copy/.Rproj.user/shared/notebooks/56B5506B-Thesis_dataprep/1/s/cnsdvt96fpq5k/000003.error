@@ -1,1 +1,0 @@
-{"frames":[],"message":"Error in autofitVariogram(formula = BRW ~ 1, brw03, model = vgm()$short) : \n  could not find function \"autofitVariogram\"\n"}

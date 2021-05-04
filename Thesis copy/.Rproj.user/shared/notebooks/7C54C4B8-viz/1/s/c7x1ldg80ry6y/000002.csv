@@ -1,5 +1,0 @@
-"0","plot(z)
-"
-"2","Error in xy.coords(x, y, xlabel, ylabel, log) : 
-  'x' is a list, but does not have components 'x' and 'y'
-"
