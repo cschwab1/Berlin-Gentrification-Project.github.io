@@ -10,46 +10,8 @@ library(lubridate)
 library(lazyeval)
 setwd("~/Desktop/Code/Thesis")
 
-##### loading base shapefiles
-
-get_X_Y_coordinates <- function(x) {
-  sftype <- as.character(sf::st_geometry_type(x, by_geometry = FALSE))
-  if(sftype == "POINT") {
-    xy <- as.data.frame(sf::st_coordinates(x))
-    dplyr::bind_cols(x, xy)
-  } else {
-    x
-  }
-}
-
-sf_fisbroker <- function(url) {
-  typenames <- basename(url)
-  url <- httr::parse_url(url)
-  url$query <- list(service = "wfs",
-                    version = "2.0.0",
-                    request = "GetFeature",
-                    srsName = "EPSG:25833",
-                    TYPENAMES = typenames)
-  request <- httr::build_url(url)
-  print(request)
-  out <- sf::read_sf(request)
-  out <- sf::st_transform(out, 3035)
-  out <- get_X_Y_coordinates(out)
-  out <- st_as_sf(as.data.frame(out))
-  return(out)
-}
-
-eg <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_erhaltgeb_em")
-eg <- eg
-eg <- eg %>% separate(gml_id, c("gml_id", "ID"), sep=17)
-eg$ID <- eg$ID %>% as.numeric()
-
-lor <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_lor_plan")
-lor <- lor %>% 
-  separate(gml_id, c("s_lor_plan", "gml_id"), sep=11) %>%
-  dplyr::select("gml_id", "PLANUNGSRAUM", "geometry")
-
-eg$F_IN_KRAFT <- as.Date(eg$F_IN_KRAFT, format = "%d.%m.%Y")
+load("~/Desktop/Code/Thesis/Data_for_Analysis/eg.Rdata")
+load("~/Desktop/Code/Thesis/Data_for_Analysis/lor.Rdata")
 
 timecalc <- function(df, from_year){
   x <- as_date(from_year)
@@ -71,7 +33,6 @@ eg <- timecalc(eg, "2018-12-31") %>% rename(yrs19 = y)
 eg <- timecalc(eg, "2021-01-01") %>% rename(yrs21 = y)
 
 eg <- st_centroid(eg)
-
 eg_lor <- st_join(lor, eg, join=st_intersects) %>% distinct(PLANUNGSRAUM, .keep_all = TRUE)
 
 eg_lor_500 <- st_join(lor, st_as_sf(eg), join = st_is_within_distance, dist = 500) %>% 

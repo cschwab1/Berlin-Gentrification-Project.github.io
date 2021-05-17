@@ -1,6 +1,9 @@
 ########################################
-# Thesis Script 3.1: Regression Analysis
+# Thesis Script 3.2: Difference-in-difference Analysis
 ########################################
+
+
+# loading environment -----------------------------------------------------
 
 ##### Loading environment 
 library(tidyverse)
@@ -8,9 +11,144 @@ library(gplots)
 library(lmtest)
 library(sandwich)
 library(sjPlot)
+library(fixest)
+library(did)
 
 setwd("~/Desktop/Code/Thesis")
 load("~/Desktop/Code/Thesis/Data_for_Analysis/blong.Rdata")
+
+
+# narrowing down areas with logit -----------------------------------------
+
+load("~/Desktop/Code/Thesis/Data_for_Analysis/btotalc.Rdata")
+ptrends_df <- left_join(btotalc, df[c(1:2, 20:21)], by=c("RAUMID")) %>% filter(gcode != 0)
+ptrends_logit <- femlm(is_eg ~ E_18U25 + E_25U55 + E_0U6 + WA + eu + aus_noneu + welf + unemp + gaa + gcode, 
+                       data=ptrends_df, 
+                       family="logit")
+ptrends_df <- ptrends_df %>% 
+  mutate(
+    phat = predict(ptrends_logit, ptrends_df), 
+    keep = phat > quantile(phat, probs = c(0.25), na.rm = TRUE)
+  ) %>% filter(keep == "TRUE")
+
+load("~/Desktop/Code/Thesis/Data_for_Analysis/contextL.Rdata")
+context_varsL$Year <- as.numeric(context_varsL$Year)
+
+# doing it with long data didn't really work
+# load("~/Desktop/Code/Thesis/Data_for_Analysis/contextL.Rdata")
+# context_varsL$Year <- as.numeric(context_varsL$Year)
+# ptrends_dfL <- left_join(context_varsL, dfL_full, by=c("RAUMID", "Year")) %>% filter(gstatus != 0)
+# ptrends_logitL <- feols(is_eg ~ auschange + eu_change + gaa_change + WA_change + unemp_change + welf_change + E_18U25_change + E_25U55_change +  E_0U6_change | RAUMID + Year, 
+#                         data = ptrends_dfL)
+
+
+# pre-setup on long data file ---------------------------------------------
+
+dfL_full <- dfL_full %>% 
+  filter(gstatus != 0) %>% 
+  filter(RAUMID %in% ptrends_df$RAUMID) %>% 
+  left_join(., context_varsL, by=c("RAUMID", "Year")) %>% 
+  drop_na()
+
+################################################################################
+##### running DiD analysis #####################################################
+################################################################################
+# controlvars <- names(dfL_full[c(15:23)])
+
+didtest <- did::att_gt(
+  yname = "gstatus",
+  tname = "Year",
+  idname = "RAUMID",
+  weightsname = "pop",
+  gname = "F_IN_KRAFT.x",
+  xformla= ~ gaa_change + welf_change,
+  data = dfL_full
+)
+
+outdyn <- did::aggte(didtest, type="dynamic")
+did::ggdid(outdyn)
+
+es_pts_spillover_control <- tibble(time = unlist(outdyn["egt"]), estimate = unlist(outdyn["att.egt"]), std.error = unlist(outdyn["se.egt"])) %>% 
+  mutate(
+    ub = estimate + 1.96 * std.error,
+    lb = estimate - 1.96 * std.error
+  ) %>%
+  filter(time != -8) 
+
+didtest_500 <- did::att_gt(
+  yname = "gstatus",
+  tname = "Year",
+  idname = "RAUMID",
+  weightsname = "pop",
+  gname = "F_IN_KRAFT.y",
+  xformla= ~ gaa_change + welf_change,
+  data = dfL_full
+)
+
+outdyn_500 <- did::aggte(didtest_500, type="dynamic", na.rm = TRUE)
+
+did::ggdid(outdyn_500, type="dynamic")
+did::ggdid(outdyn, type="dynamic")
+
+es_pts_spillover_effect <- tibble(time = unlist(outdyn_500["egt"]), estimate = unlist(outdyn_500["att.egt"]), std.error = unlist(outdyn_500["se.egt"])) %>% 
+  mutate(
+    ub = estimate + 1.96 * std.error,
+    lb = estimate - 1.96 * std.error
+)
+
+es_pts_combined <- bind_rows(
+  es_pts_spillover_control %>% mutate(group = "Treatment Effect", time = time - 0.1),
+  es_pts_spillover_effect %>% mutate(group = "Spillover Onto Control", time = time + 0.1)
+) %>% filter(std.error != 0)
+
+es_plot_combined <- ggplot(es_pts_combined) +
+    geom_vline(xintercept = -0.5, color = "grey50") + 
+    geom_hline(yintercept = 0, color = "black") +
+    geom_point(aes(x = time, y = estimate, color = group)) +
+    geom_errorbar(aes(x = time, ymin = lb, ymax = ub, color = group), alpha = 0.8) + 
+    theme(
+      legend.position = c(0.15, 0.25),
+      legend.spacing.x = unit(0, "pt"),
+      legend.spacing.y = unit(0, "pt")
+    ) +
+    scale_shape_manual(values = c(16, 18)) + 
+    scale_color_manual(values = c("#5e81ac", "#bf616a")) +
+    labs(y = "Treatment effect on gentrification status", x = "Years since protection area establishment", color = NULL)
+
+es_plot_combined
+
+
+\ggplot(es_pts_spillover_effect) +
+  geom_point(aes(x = time, y = estimate)) +
+  geom_errorbar(aes(x = time, ymin = lb, ymax = ub), alpha = 0.8) + 
+  geom_vline(xintercept = -0.5, color = "grey50") + 
+  geom_hline(yintercept = 0, color = "black") +
+  labs(y = NULL, x = "Years since CHC establishment")
+
+
+
+ggplot(es_pts_spillover_control) +
+  geom_point(aes(x = time, y = estimate)) +
+  geom_errorbar(aes(x = time, ymin = lb, ymax = ub), alpha = 0.8) + 
+  geom_vline(xintercept = -0.5, color = "grey50") + 
+  geom_hline(yintercept = 0, color = "black") +
+  labs(y = NULL, x = "Years since CHC establishment")
+
+outsimp <- aggte(didtest, type="simple")
+
+
+
+did.e <- aggte(didtest, type="group")
+did.c <- aggte(didtest, type="calendar")
+
+save(didtest, outdyn, did.e, file="~/Desktop/Code/Thesis/Data_for_Analysis/didplot.Rdata")
+
+
+
+
+
+
+
 
 ##### Pretesting: running panel analysis
 # event study regression, 0 effect in pre-treatment period
@@ -85,26 +223,6 @@ bptest(R1.DD1, studentize=F)
 
 coeftest(R1.DD1, vcovHC(R1.DD1, type = "HC1")) # Heteroskedasticity consistent coefficients, type 3
 t(sapply(c("HC0", "HC1", "HC2", "HC3", "HC4"), function(x) sqrt(diag(vcovHC(R1.DD1, type = x)))))
-
-################################################################################
-##### running DiD analysis #####################################################
-################################################################################
-
-didtest <- did::att_gt(
-  yname = "gstatus",
-  tname = "Year",
-  idname = "RAUMID",
-  gname = "F_IN_KRAFT.x",
-  xformla=~1,
-  data = dfL_full
-)
-
-outsimp <- aggte(didtest, type="simple")
-outdyn <- aggte(didtest, type="dynamic")
-did.e <- aggte(didtest, type="group")
-did.c <- aggte(didtest, type="calendar")
-
-save(didtest, outdyn, did.e, file="~/Desktop/Code/Thesis/Data_for_Analysis/didplot.Rdata")
 
 
 st_write(df, dsn = "~/Desktop/Code/Thesis/Data_for_Analysis/df.shp")

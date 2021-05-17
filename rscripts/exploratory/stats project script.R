@@ -307,3 +307,8 @@ str(q)
 gpoints <- osmdata_sf(q)
 
 
+
+
+load("~/Desktop/Code/Thesis/Data_for_Analysis/eg.Rdata")
+load("~/Desktop/Code/Thesis/Data_for_Analysis/lor.Rdata")
+

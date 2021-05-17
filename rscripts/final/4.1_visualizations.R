@@ -2,6 +2,9 @@
 # Thesis Script 3.1: Visualization Maker
 ########################################
 
+
+# setup -------------------------------------------------------------------
+
 # loading environment 
 setwd("~/Desktop/Code/Thesis")
 load("~/Desktop/Code/Thesis/Data_for_Analysis/bfinal.Rdata")
@@ -61,15 +64,42 @@ bwhole <- st_cast(lor, to="POLYGON")
 bL_sf <- left_join(dfL_full, lor, by=c("RAUMID")) %>% st_as_sf()
 bL_sf$gstatus <- as.factor(bL_sf$gstatus)
 
+
+# basic maps --------------------------------------------------------------
 # making basic tmap facet
 breaks = c(0, 1, 2, 3, 4, 5)
-general_facetbyyear <- tm_shape(bL_sf) + 
-  tm_polygons(col = "gstatus", breaks = breaks, palette = "Oranges") + 
-  tm_facets(by=c("Year"), nrow = 3) + 
-  tm_layout(title = "Gentrification Status Bi-Yearly: 2003-2019",
-            legend.position = c("right", "bottom"), 
-            title.size = 5,
-            frame = F)
+stagenames = c("0 — Not yet susceptible (high-value)",
+               "1 — Pre-gentrification ",
+               "2 — Pioneers Invade",
+               "3 — Pioneers dominate, Initial residents displaced", 
+               "4 — Gentrifiers invade",
+               "5 — Gentrifiers dominate, pioneers displaced")
+
+gg <- ggplot() + 
+  geom_sf(data=bL_sf, aes(fill=gstatus), size=.1) + 
+  facet_wrap(~Year) + 
+  scale_fill_brewer(palette = "OrRd", name="Gentrification Status", labels=stagenames) + 
+  theme(legend.position = c(0.7, 0.2)) + 
+  theme(axis.text.x = element_blank(), axis.text.y = element_blank()) + 
+  theme(legend.key.size = unit(.3, "cm"))
+
+# general_facetbyyear <- tm_shape(bL_sf) + 
+#   tm_polygons(col = "gstatus", breaks = breaks, palette = "Oranges", title="Gentrification Status", labels=stagenames) + 
+#   tm_facets(by=c("Year"), nrow = 4) + 
+#   tm_layout(title = "Gentrification Status Bi-Yearly: 2003-2019",
+#             # main.title.size = 20, 
+#             # legend.outside=TRUE,
+#             # legend.outside.size = .3,
+#             # legend.text.size = 8,
+#             legend.outside.position = c("right", "bottom"))
+# 
+# bL_sf <- bL_sf %>% rename(id = RAUMID)
+
+
+
+  
+  geom_map(data=bL_sf, map=bL_sf, aes(fill=gstatus, map_id=bL_sf, color=gstatus))
+
 
 # facets aggregated to districts (Bezirk) 
 Mode <- function(x) {
@@ -80,13 +110,14 @@ Mode <- function(x) {
 bezirks_byyear <- bL_sf %>% 
   group_by(BEZIRKSNAME, Year) %>% 
   summarise(modestatus = Mode(gstatus))
-bezirksfacet <- tm_shape(x) + 
+bezirksfacet <- tm_shape(bezirks_byyear) + 
   tm_polygons(col = "modestatus", breaks = breaks, palette = "Oranges") + 
   tm_facets(by=c("Year"), nrow = 3, scale.factor = 2) + 
   tm_layout(title = "Gentrification Status Bi-Yearly: 2003-2019, by district",
             legend.position = c("right", "bottom"), 
             title.size = 5,
             frame = F)
+bezirksfacet
 
 # facet map of each district
 facet_neighborhoods <- function(x){

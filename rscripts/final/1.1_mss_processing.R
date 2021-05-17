@@ -272,8 +272,18 @@ mss_2019 <- mss_2019 %>%
 mss_2019[,2:6] <- lapply(mss_2019[,2:6], as.numeric)
 
 ########## Spatially aggregating to the same scale
+##### Verkehrzehlen
+# vz <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_vz") 
+# vz <- vz %>% separate(gml_id, c("s_vz.", "gml_id"), sep=5) %>% 
+#  dplyr::select("gml_id", "geometry")
+#vz$s_vz. <- NULL
 
-# usually this can be done via sf_fisbroker: see other final files for more info
+##### LOR
+# lor <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_lor_plan")
+# lor <- lor %>% 
+#  separate(gml_id, c("s_lor_plan", "gml_id"), sep=11) %>%
+#  dplyr::select("gml_id", "geometry")
+
 lor <- st_as_sf(readOGR("~/Desktop/Code/Thesis/shapefiles/lor.shp"))
 vz <- st_as_sf(readOGR("~/Desktop/Code/Thesis/shapefiles/vz.shp"))
 vz$gml_id <- as.numeric(vz$gml_id)

@@ -1,0 +1,198 @@
+---
+title: "5_Spatial Autocorrelation"
+output: html_notebook
+---
+
+```{r message=FALSE, warning=FALSE}
+setwd("~/Desktop/Code/Thesis")
+library(tidyverse)
+library(tidycensus)
+library(sf)
+library(tigris)
+library(tmap)
+library(sp)
+library(spdep)
+library(rmapshaper)
+library(rgdal)
+library(broom)
+```
+
+```{r}
+load("~/Desktop/Code/Thesis/Data_for_Analysis/bfinal.Rdata")
+load("~/Desktop/Code/Thesis/Data_for_Analysis/gtable.Rdata")
+load("~/Desktop/Code/Thesis/Data_for_Analysis/blong.Rdata")
+load("~/Desktop/Code/Thesis/Data_for_Analysis/lor.Rdata")
+```
+
+```{r warning=FALSE, message=FALSE}
+lor <- lor %>% dplyr::rename(RAUMID = gml_id)
+lor$RAUMID <- as.numeric(lor$RAUMID) 
+
+# joining objects to shapefile
+b_sf <- left_join(bfinal, lor, by=c("RAUMID")) %>% st_as_sf()
+b_sf$gcode[is.na(b_sf$gcode)] <- 0
+bwhole <- st_cast(lor, to="POLYGON")
+
+bL_sf <- left_join(dfL_full, lor, by=c("RAUMID")) %>% st_as_sf()
+bL_sf$gstatus <- as.factor(bL_sf$gstatus)
+```
+
+# Continguous neighbors
+
+## plotting/setup
+```{r}
+bw <- poly2nb(b_sf, row.names=b_sf$RAUMID, queen=T)
+plot(b_sf$geometry, col="gray", border="red") + plot(bw, xy, col="blue", lwd=.5, add=TRUE)
+xy <- coordinates(b_sf %>% as_Spatial())
+ww <- nb2listw(bw, style="W", zero.policy = TRUE)
+```
+
+Plotting contiguous points on scatter
+```{r}
+n <- length(b_sf)
+y <- b_sf$gcode
+ybar <- mean(y)
+wm <- nb2mat(bw, style='B')
+ms <- cbind(id=rep(1:n, each=n), y=rep(y, each=n), value=as.vector(wm * y))
+ms <- ms[ms[,3] > 0, ]
+
+ams <- aggregate(ms[,2:3], list(ms[,1]), FUN=mean)
+ams <- ams[,-1]
+colnames(ams) <- c('y', 'spatially lagged y')
+head(ams)
+
+plot(ams)
+reg <- lm(ams[,2] ~ ams[,1])
+abline(reg, lwd=2)
+abline(h=mean(ams[,2]), lt=2)
+abline(v=ybar, lt=2)
+```
+
+## doing calcs 
+```{r}
+length <- 10
+y <- bL_sf
+y$gstatus <- as.numeric(as.character(y$gstatus))
+
+x <- split(y, y$Year)
+x01 <- x[[1]]
+x03 <- x[[2]]
+x05 <- x[[3]]
+x07 <- x[[4]]
+x09 <- x[[5]]
+x11 <- x[[6]]
+x13 <- x[[7]]
+x15 <- x[[8]]
+x17 <- x[[9]]
+x19 <- x[[10]]
+
+morlist.nn <- vector(mode = "list", length = length)
+morlist.nn[[1]] <- moran.mc(x01$gstatus, ww, nsim=200)
+morlist.nn[[2]] <- moran.mc(x03$gstatus, ww, nsim=200)
+morlist.nn[[3]] <- moran.mc(x05$gstatus, ww, nsim=200)
+morlist.nn[[4]] <- moran.mc(x07$gstatus, ww, nsim=200)
+morlist.nn[[5]] <- moran.mc(x09$gstatus, ww, nsim=200)
+morlist.nn[[6]] <- moran.mc(x11$gstatus, ww, nsim=200)
+morlist.nn[[7]] <- moran.mc(x13$gstatus, ww, nsim=200)
+morlist.nn[[8]] <- moran.mc(x15$gstatus, ww, nsim=200)
+morlist.nn[[9]] <- moran.mc(x17$gstatus, ww, nsim=200)
+morlist.nn[[10]] <- moran.mc(x19$gstatus, ww, nsim=200)
+
+m01 <- tidy(morlist.nn[[1]])
+m03 <- tidy(morlist.nn[[2]])
+m05 <- tidy(morlist.nn[[3]])
+m07 <- tidy(morlist.nn[[4]])
+m09 <- tidy(morlist.nn[[5]])
+m11 <- tidy(morlist.nn[[6]])
+m13 <- tidy(morlist.nn[[7]]) 
+m15 <- tidy(morlist.nn[[8]])
+m17 <- tidy(morlist.nn[[9]])
+m19 <- tidy(morlist.nn[[10]])
+m.ave <- rbind(m01, m03, m05, m07, m09, m11, m13, m15, m17, m19)
+
+years <- seq(2001, 2019, 2)
+m.ave$year <- years
+avg_m.ave <- colMeans(m.ave[,1:2])
+m.ave <- rbind(m.ave, avg_m.ave)
+m.ave[11, 3:6] <- NA
+m.ave$year <- as.character(m.ave$year)
+m.ave[11, 6] <- "Average"
+m.ave <- m.ave %>% select(c(6, 1, 2, 5))
+m.ave[,2:3] <- round(m.ave[,2:3], digits=4)
+m.ave
+
+write.table((m.ave), file = "~/Desktop/m.ave.nn.txt", sep = ",", quote = FALSE, row.names = F)
+```
+
+# Inverse Distance weighted
+Creating inverse distance weighted bands
+
+```{r}
+coo <- coordinates(as_Spatial(b_sf))
+k1 <- knn2nb(knearneigh(coo))
+critical.threshold <- max(unlist(nbdists(k1,coo)))
+nb.dist.band <- dnearneigh(coo, 0, critical.threshold)
+distances <- nbdists(nb.dist.band, coo)
+distances[1]
+invd1 <- lapply(distances, function(x) (1/x))
+invd1[1]
+invd1a <- lapply(distances, function(x) (1/(x/1000)))
+invd1a[1]
+invd.weights <- nb2listw(nb.dist.band,glist = invd1a,style = "B")
+
+plot(invd.weights, coo, lwd=.2, col="blue", cex = .5)
+```
+
+
+```{r}
+x <- split(y, y$Year)
+x01 <- x[[1]]
+x03 <- x[[2]]
+x05 <- x[[3]]
+x07 <- x[[4]]
+x09 <- x[[5]]
+x11 <- x[[6]]
+x13 <- x[[7]]
+x15 <- x[[8]]
+x17 <- x[[9]]
+x19 <- x[[10]]
+
+morlist <- vector(mode = "list", length = length)
+morlist[[1]] <- moran.mc(x01$gstatus, invd.weights, nsim=200)
+morlist[[2]] <- moran.mc(x03$gstatus, invd.weights, nsim=200)
+morlist[[3]] <- moran.mc(x05$gstatus, invd.weights, nsim=200)
+morlist[[4]] <- moran.mc(x07$gstatus, invd.weights, nsim=200)
+morlist[[5]] <- moran.mc(x09$gstatus, invd.weights, nsim=200)
+morlist[[6]] <- moran.mc(x11$gstatus, invd.weights, nsim=200)
+morlist[[7]] <- moran.mc(x13$gstatus, invd.weights, nsim=200)
+morlist[[8]] <- moran.mc(x15$gstatus, invd.weights, nsim=200)
+morlist[[9]] <- moran.mc(x17$gstatus, invd.weights, nsim=200)
+morlist[[10]] <- moran.mc(x19$gstatus, invd.weights, nsim=200)
+
+m01 <- tidy(morlist[[1]])
+m03 <- tidy(morlist[[2]])
+m05 <- tidy(morlist[[3]])
+m07 <- tidy(morlist[[4]])
+m09 <- tidy(morlist[[5]])
+m11 <- tidy(morlist[[6]])
+m13 <- tidy(morlist[[7]]) 
+m15 <- tidy(morlist[[8]])
+m17 <- tidy(morlist[[9]])
+m19 <- tidy(morlist[[10]])
+m.ave <- rbind(m01, m03, m05, m07, m09, m11, m13, m15, m17, m19)
+
+years <- seq(2001, 2019, 2)
+m.ave$year <- years
+avg_m.ave <- colMeans(m.ave[,1:2])
+m.ave <- rbind(m.ave, avg_m.ave)
+m.ave[11, 3:6] <- NA
+m.ave$year <- as.character(m.ave$year)
+m.ave[11, 6] <- "Average"
+m.ave <- m.ave %>% select(c(6, 1, 2, 5))
+m.ave[,2:3] <- round(m.ave[,2:3], digits=4)
+m.ave
+
+write.table((m.ave), file = "~/Desktop/m.ave.txt", sep = ",", quote = FALSE, row.names = F)
+```
+
+

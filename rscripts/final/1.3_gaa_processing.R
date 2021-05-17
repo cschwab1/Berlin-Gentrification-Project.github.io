@@ -2,6 +2,8 @@
 # Thesis Script V: GAA Processing
 ########################################
 
+# environment setup -------------------------------------------------------
+
 ##### Setting up environment
 get_X_Y_coordinates <- function(x) {
   sftype <- as.character(sf::st_geometry_type(x, by_geometry = FALSE))
@@ -30,6 +32,10 @@ sf_fisbroker <- function(url) {
   return(out)
 }
 
+
+# loading data ------------------------------------------------------------
+
+
 ##### Loading GAA data
 setClass("num.with.commas")
 setAs("character", "num.with.commas", 
@@ -52,6 +58,9 @@ gaa <- left_join(gaa, sb, by=c("Block" = "blknr")) %>%
   st_as_sf() #%>% 
  # filter(ewk %notin% ewkfilt)
 gaa <- st_centroid(gaa) %>% filter(!st_is_empty(.))
+
+
+# setting up interpolation  -----------------------------------------------
 
 ##### Interpolating GAA data to raster
 berlin_base <- readOGR("~/Desktop/Code/Thesis/shapefiles/berlin_sf.shp")
@@ -88,6 +97,9 @@ gaa19k <- gaa_calc("m_2018", "m_2019", "m_2020")
 
 
 save(gaa01k, gaa03k, gaa05k, gaa07k, gaa09k, gaa11k, gaa13k, gaa15k, gaa17k, gaa19k, file = "~/Desktop/Code/Thesis/Data_for_Analysis/gaakrigd.Rdata")
+
+
+# conversion to LOR planning areas ----------------------------------------
 
 load("~/Desktop/Code/Thesis/Data_for_Analysis/gaakrigd.Rdata")
 

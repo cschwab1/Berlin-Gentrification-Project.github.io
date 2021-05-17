@@ -1,0 +1,12 @@
+year,statistic,p.value,alternative
+1,2001,0.2126,0.005,greater
+2,2003,0.1043,0.005,greater
+3,2005,0.0682,0.005,greater
+4,2007,0.1011,0.005,greater
+5,2009,0.1344,0.005,greater
+6,2011,0.1467,0.005,greater
+7,2013,0.1233,0.005,greater
+8,2015,0.1181,0.005,greater
+9,2017,0.0995,0.005,greater
+10,2019,0.0888,0.005,greater
+11,Average,0.1197,0.005,NA

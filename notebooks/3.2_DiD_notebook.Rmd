@@ -1,0 +1,176 @@
+---
+title: "DiD Analysis"
+output: html_notebook
+---
+
+# Load environment
+```{r results='hide', warning=FALSE, comment=FALSE}
+library(tidyverse)
+library(gplots)
+library(lmtest)
+library(sandwich)
+library(sjPlot)
+library(fixest)
+library(did)
+
+setwd("~/Desktop/Code/Thesis")
+load("~/Desktop/Code/Thesis/Data_for_Analysis/blong.Rdata")
+```
+
+# Narrowing down areas with logit 
+```{r}
+load("~/Desktop/Code/Thesis/Data_for_Analysis/btotalc.Rdata")
+load("~/Desktop/Code/Thesis/Data_for_Analysis/contextL.Rdata")
+ptrends_df <- left_join(btotalc, df[c(1:2, 20:21)], by=c("RAUMID")) %>% filter(gcode != 0)
+ptrends_logit <- femlm(is_eg ~ E_18U25 + E_25U55 + E_0U6 + WA + eu + aus_noneu + welf + unemp + gaa + gcode, 
+                       data=ptrends_df, 
+                       family="logit")
+ptrends_df <- ptrends_df %>% 
+  mutate(
+    phat = predict(ptrends_logit, ptrends_df), 
+    keep = phat > quantile(phat, probs = c(0.25), na.rm = TRUE)
+  ) %>% filter(keep == "TRUE")
+
+context_varsL$Year <- as.numeric(context_varsL$Year)
+
+dfL_full <- dfL_full %>% 
+  filter(gstatus != 0) %>% 
+  filter(RAUMID %in% ptrends_df$RAUMID) %>% 
+  left_join(., context_varsL, by=c("RAUMID", "Year")) %>% 
+  drop_na()
+```
+
+```{r}
+save(dfL_full, file="~/Desktop/Code/Thesis/Data_for_Analysis/panel.Rdata")
+```
+
+
+# DiD test for treatment effects
+```{r results='hide', warning=FALSE, comment=FALSE}
+didtest <- did::att_gt(
+  yname = "gstatus",
+  tname = "Year",
+  idname = "RAUMID",
+  weightsname = "pop",
+  xformla = ~ is_eg_byyear500,
+  gname = "F_IN_KRAFT.x",
+  data = dfL_full
+)
+
+outsimp <- did::aggte(didtest, type="simple", na.rm = TRUE)
+outdyn <- did::aggte(didtest, type="dynamic", na.rm = TRUE)
+
+justevens <- seq(-12, 4, 2)
+
+es_pts_spillover_control <- tibble(time = unlist(outdyn["egt"]), estimate = unlist(outdyn["att.egt"]), std.error = unlist(outdyn["se.egt"])) %>% 
+  mutate(
+    ub = estimate + 1.96 * std.error,
+    lb = estimate - 1.96 * std.error
+  ) %>% filter(time %in% justevens)
+```
+
+## plot of att estimation 
+```{r}
+ggplot(es_pts_spillover_control) +
+	geom_point(aes(x = time, y = estimate)) +
+	geom_errorbar(aes(x = time, ymin = lb, ymax = ub), alpha = 0.8) + 
+	geom_vline(xintercept = -0.5, color = "grey50") + 
+	geom_hline(yintercept = 0, color = "black") +
+	labs(y = NULL, x = "Years since CHC establishment")
+```
+
+#DiD test for spillover effects
+```{r results='hide', warning=FALSE, comment=FALSE}
+didtest_500 <- did::att_gt(
+  yname = "gstatus",
+  tname = "Year",
+  idname = "RAUMID",
+  weightsname = "pop",
+  gname = "F_IN_KRAFT.y",
+  data = dfL_full %>% filter(is_eg_byyear500 != 2)
+)
+
+outdyn_500 <- did::aggte(didtest_500, type="dynamic", na.rm = TRUE)
+
+es_pts_spillover_effect <- tibble(time = unlist(outdyn_500["egt"]), estimate = unlist(outdyn_500["att.egt"]), std.error = unlist(outdyn_500["se.egt"])) %>% 
+  mutate(
+    ub = estimate + 1.96 * std.error,
+    lb = estimate - 1.96 * std.error
+) %>% filter(time %in% justevens)
+```
+
+```{r results='hide', warning=FALSE, comment=FALSE}
+didtest_z <- did::att_gt(
+  yname = "gstatus",
+  tname = "Year",
+  idname = "RAUMID",
+  weightsname = "pop",
+  gname = "F_IN_KRAFT.y",
+  data = dfL_full %>% filter(is_eg == 1)
+)
+
+outdyn_z <- did::aggte(didtest_z, type="dynamic", na.rm = TRUE)
+
+es_pts_spillover_z <- tibble(time = unlist(outdyn_z["egt"]), estimate = unlist(outdyn_z["att.egt"]), std.error = unlist(outdyn_z["se.egt"])) %>% 
+  mutate(
+    ub = estimate + 1.96 * std.error,
+    lb = estimate - 1.96 * std.error
+) %>% filter(time %in% justevens)
+```
+
+Creating combined plot 
+```{r}
+es_pts_combined <- bind_rows(
+  es_pts_spillover_control %>% mutate(group = "Treatment Effect", time = time - 0.1),
+  es_pts_spillover_effect %>% mutate(group = "Spillover Onto Control", time = time + 0.1),
+  es_pts_spillover_z %>% mutate(group = "Spillover Onto Treated", time = time + 0.2)
+)
+
+es_plot_combined <- ggplot(es_pts_combined) +
+    geom_vline(xintercept = -0.5, color = "grey50") + 
+    geom_hline(yintercept = 0, color = "black") +
+    geom_point(aes(x = time, y = estimate, color = group)) +
+    geom_errorbar(aes(x = time, ymin = lb, ymax = ub, color = group), alpha = 0.8) + 
+    theme(
+      legend.position = c(0.2, 0.15),
+      legend.spacing.x = unit(0, "pt"),
+      legend.spacing.y = unit(0, "pt")
+    ) +
+    scale_shape_manual(values = c(16, 18, 20)) + 
+    scale_color_manual(values = c("#5e81ac", "#bf616a", "#49de49")) +
+    labs(y = "Treatment effect on gentrification status", x = "Years since protection area establishment", color = NULL)
+
+es_plot_combined
+```
+
+```{r}
+x <- did::aggte(didtest, type="simple", na.rm = TRUE)
+x.1 <- tibble(overall = x[[1]], std.error = x[[2]]) %>% 
+  mutate(
+    ub = overall + 1.96 * std.error,
+    lb = overall - 1.96 * std.error
+)
+
+y <- did::aggte(didtest_500, type="simple", na.rm = TRUE)
+y.1 <- tibble(overall = (y[[1]]), std.error = y[[2]]) %>% 
+  mutate(
+    ub = overall + 1.96 * std.error,
+    lb = overall - 1.96 * std.error
+)
+z <- did::aggte(didtest_z, type="simple", na.rm = TRUE)
+z.1 <- tibble(overall = (z[[1]]), std.error = z[[2]]) %>% 
+  mutate(
+    ub = overall + 1.96 * std.error,
+    lb = overall - 1.96 * std.error
+)
+
+simp <- bind_rows(x.1, y.1, z.1)
+simp
+```
+
+```{r}
+dids <- list(didtest, didtest_500, didtest_z)
+lapply(dids, summary)
+```
+
+

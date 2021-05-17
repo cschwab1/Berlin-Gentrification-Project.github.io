@@ -1,27 +1,30 @@
-  ########################################
-  # Thesis Script VII: Gentrification Stage Classification
-  ########################################
-  
-  # loading environment from datamerge script
-  setwd("~/Desktop/Code/Thesis")
-  load("~/Desktop/Code/Thesis/Data_for_Analysis/datacomb.Rdata")
-  library(tidyverse)
-  
-  # adding code and time columns to first dataframe, selecting to right order
-  codentimedf <- data.frame(gcode = 0, gcode1yr = 0, gcode2yr = 0, gcode3yr = 0, gcode4yr = 0, gcode5yr = 0)
-  b01 <- merge(b01, codentimedf) %>% dplyr::select(c(1, 10:14, 2:9))
-  
-  b01["year"] <- as.Date("2001-12-31")
-  b03c["year"] <- as.Date("2002-12-31")
-  b05c["year"] <- as.Date("2004-12-31")
-  b07c["year"] <- as.Date("2006-12-31")
-  b09c["year"] <- as.Date("2008-12-31")
-  b11c["year"] <- as.Date("2010-12-31")
-  b13c["year"] <- as.Date("2012-12-31")
-  b15c["year"] <- as.Date("2014-12-31")
-  b17c["year"] <- as.Date("2016-12-31")
-  b19c["year"] <- as.Date("2018-12-31")
-  
+########################################
+# Thesis Script VII: Gentrification Stage Classification
+########################################
+
+# setting up environment --------------------------------------------------
+
+# loading environment from datamerge script
+setwd("~/Desktop/Code/Thesis")
+load("~/Desktop/Code/Thesis/Data_for_Analysis/datacomb.Rdata")
+library(tidyverse)
+library(lubridate)
+
+# adding code and time columns to first dataframe, selecting to right order
+codentimedf <- data.frame(gcode = 0, gcode0yr = 0, gcode1yr = 0, gcode2yr = 0, gcode3yr = 0, gcode4yr = 0, gcode5yr = 0)
+b01 <- merge(b01, codentimedf) %>% dplyr::select(c(1, 10:15, 2:9))
+
+b01["year"] <- as.Date("2001-12-31")
+b03c["year"] <- as.Date("2002-12-31")
+b05c["year"] <- as.Date("2004-12-31")
+b07c["year"] <- as.Date("2006-12-31")
+b09c["year"] <- as.Date("2008-12-31")
+b11c["year"] <- as.Date("2010-12-31")
+b13c["year"] <- as.Date("2012-12-31")
+b15c["year"] <- as.Date("2014-12-31")
+b17c["year"] <- as.Date("2016-12-31")
+b19c["year"] <- as.Date("2018-12-31")
+
 b01[(is.na(b01))] <- 0
 b03c[(is.na(b03c))] <- 0
 b05c[(is.na(b05c))] <- 0
@@ -33,6 +36,9 @@ b15c[(is.na(b15c))] <- 0
 b17c[(is.na(b17c))] <- 0
 b19c[(is.na(b19c))] <- 0
   
+
+# gentrification function -------------------------------------------------
+
   # creating gentrification classification function
   gentriclass <- function(x, y){
     for(i in 1:nrow(x)){
@@ -93,7 +99,10 @@ b19c[(is.na(b19c))] <- 0
           if (isTRUE(x$gaa[i] <= quantile(x$gaa, .6))){
             x$gcode[i] <- 1
             x$gcode1yr[i] <- x$year[i]
-            }
+          } else {
+            x$gcode[i] <- 0
+            x$gcode0yr[i] <- x$year[i]
+          }
         } 
       } else {
   ########################################################################################################################################################################################################
@@ -156,107 +165,123 @@ b19c[(is.na(b19c))] <- 0
           if (isTRUE(x$gaa[i] <= quantile(x$gaa, .6))){
             x$gcode[i] <- 1
             x$gcode1yr[i] <- x$year[i]
+          } else {
+            x$gcode[i] <- 0
+            x$gcode0yr[i] <- x$year[i]
           }
         } 
       }
     }
-    return(x)
-  }
-  
-  # running function through datasets
-  b03g <- gentriclass(b01) %>% dplyr::select(c(1:6, 14))  
-  b03g$gen.01 <- b03g$gcode
-  b03g <- b03g %>% merge(., b03c, by="RAUMID")
-  
-  b05g <- gentriclass(b03g) %>% dplyr::select(1:8)
-  b05g$gen.03 <- b05g$gcode
-  b05g <- b05g %>% merge(., b05c, by="RAUMID")
-  
-  b07g <- gentriclass(b05g) %>% dplyr::select(1:9) 
-  b07g$gen.05 <- b07g$gcode
-  b07g <- b07g %>% merge(., b07c, by="RAUMID")
-  
-  b09g <- gentriclass(b07g) %>% dplyr::select(1:10) 
-  b09g$gen.07 <- b09g$gcode
-  b09g <- b09g %>% merge(., b09c, by="RAUMID") 
-  
-  b11g <- gentriclass(b09g) %>% dplyr::select(1:11) 
-  b11g$gen.09 <- b11g$gcode
-  b11g <- b11g %>% merge(., b11c, by="RAUMID") 
-  
-  b13g <- gentriclass(b11g) %>% dplyr::select(1:12)
-  b13g$gen.11 <- b13g$gcode
-  b13g <- b13g %>% merge(., b13c, by="RAUMID") 
-  
-  b15g <- gentriclass(b13g) %>% dplyr::select(1:13)
-  b15g$gen.13 <- b15g$gcode
-  b15g <- b15g %>% merge(., b15c, by="RAUMID") 
-  
-  b17g <- gentriclass(b15g) %>% dplyr::select(1:14)
-  b17g$gen.15 <- b17g$gcode
-  b17g <- b17g %>% merge(., b17c, by="RAUMID") 
-  
-  b19g <- gentriclass(b17g) %>% dplyr::select(1:15) 
-  b19g$gen.17 <- b19g$gcode
-  b19g <- b19g %>% merge(., b19c, by="RAUMID") 
-  
-  bfinal <- gentriclass(b19g) %>% dplyr::select(1:16)
-  bfinal$gen.19 <- bfinal$gcode
-  
-  # changing time variables from numeric to date
-  bfinal[bfinal==0] <- NA 
-  bfinal[2:6] <- as.data.frame(lapply(bfinal[2:6], function(x) as.Date(x, origin = '1970-01-01')))
-  
-  # adding new columns measuring time spent in each stage of gentrification
-  s1 <- bfinal %>% filter(!is.na(bfinal$gcode2yr))
-  s1$tg1 <- time_length(difftime(s1$gcode2yr, s1$gcode1yr), "years")
-  s1 <- s1[c(1, 18)]
-  
-  s2 <- bfinal %>% filter(!is.na(bfinal$gcode3yr))
-  s2$tg2 <- time_length(difftime(s2$gcode3yr, s2$gcode2yr), "years")
-  s2 <- s2[c(1, 18)]
-  
-  s3 <- bfinal %>% filter(!is.na(bfinal$gcode4yr))
-  s3$tg3 <- time_length(difftime(s3$gcode4yr, s3$gcode3yr), "years")
-  s3 <- s3[c(1, 18)]
-  
-  s4 <- bfinal %>% filter(!is.na(bfinal$gcode5yr))
-  s4$tg4 <- time_length(difftime(s4$gcode5yr, s4$gcode4yr), "years")
-  s4 <- s4[c(1, 18)]
-  
-  s5 <- bfinal %>% filter(!is.na(bfinal$gcode5yr))
-  s5$tg5 <- time_length(difftime(as.Date("2020-1-1"), s5$gcode5yr), "years")
-  s5 <- s5[c(1, 18)]
-  
-  bfinal <- bfinal %>% left_join(., s1, by=c("RAUMID")) %>%
-    left_join(., s2, by=c("RAUMID")) %>% 
-    left_join(., s3, by=c("RAUMID")) %>% 
-    left_join(., s4, by=c("RAUMID")) %>%
-    left_join(., s5, by=c("RAUMID"))
-  bfinal[8:12] <- round(bfinal[8:12], digits = 1)
-  
-  # separate foreigner dataframe wide format
-  b01a <- b01 %>% dplyr::select(c(1, 12)) %>% rename(aus.03 = aus_noneu)
-  b03a <- b03c %>% dplyr::select(c(1, 7)) %>% rename(aus.03 = aus_noneu)
-  b05ca <- b05c %>% dplyr::select(c(1, 9)) %>% rename(aus.05 = aus_noneu)
-  b07ca <- b07c %>% dplyr::select(c(1, 9)) %>% rename(aus.07 = aus_noneu)
-  b09ca <- b09c %>% dplyr::select(c(1, 9)) %>% rename(aus.09 = aus_noneu)
-  b11ca <- b11c %>% dplyr::select(c(1, 9)) %>% rename(aus.11 = aus_noneu)
-  b13ca <- b13c %>% dplyr::select(c(1, 9)) %>% rename(aus.13 = aus_noneu)
-  b15ca <- b15c %>% dplyr::select(c(1, 9)) %>% rename(aus.15 = aus_noneu)
-  b17ca <- b17c %>% dplyr::select(c(1, 9)) %>% rename(aus.17 = aus_noneu)
-  b19ca <- b19c %>% dplyr::select(c(1, 9)) %>% rename(aus.19 = aus_noneu)
-  
-  baus <- left_join(b01a, b03ca, by=c("RAUMID")) %>% 
-    left_join(., b05ca, by=c("RAUMID")) %>% 
-    left_join(., b07ca, by=c("RAUMID")) %>% 
-    left_join(., b09ca, by=c("RAUMID")) %>% 
-    left_join(., b11ca, by=c("RAUMID")) %>% 
-    left_join(., b13ca, by=c("RAUMID")) %>% 
-    left_join(., b15ca, by=c("RAUMID")) %>% 
-    left_join(., b17ca, by=c("RAUMID")) %>% 
-    left_join(., b19ca, by=c("RAUMID"))
-  
+  return(x)
+}
+
+
+# running function through datasets ---------------------------------------
+
+# for each year, (1) run thru function
+# (2) select cols with gentrification status and date info
+b03g <- gentriclass(b01) %>% dplyr::select(c(1:7, 15))  
+# (3) add column with status at year ran
+b03g$gen.01 <- b03g$gcode
+# merge to next year dataset
+b03g <- b03g %>% merge(., b03c, by="RAUMID")
+
+b05g <- gentriclass(b03g) %>% dplyr::select(1:9)
+b05g$gen.03 <- b05g$gcode
+b05g <- b05g %>% merge(., b05c, by="RAUMID")
+
+b07g <- gentriclass(b05g) %>% dplyr::select(1:10) 
+b07g$gen.05 <- b07g$gcode
+b07g <- b07g %>% merge(., b07c, by="RAUMID")
+
+b09g <- gentriclass(b07g) %>% dplyr::select(1:11) 
+b09g$gen.07 <- b09g$gcode
+b09g <- b09g %>% merge(., b09c, by="RAUMID") 
+
+b11g <- gentriclass(b09g) %>% dplyr::select(1:12) 
+b11g$gen.09 <- b11g$gcode
+b11g <- b11g %>% merge(., b11c, by="RAUMID") 
+
+b13g <- gentriclass(b11g) %>% dplyr::select(1:13)
+b13g$gen.11 <- b13g$gcode
+b13g <- b13g %>% merge(., b13c, by="RAUMID") 
+
+b15g <- gentriclass(b13g) %>% dplyr::select(1:14)
+b15g$gen.13 <- b15g$gcode
+b15g <- b15g %>% merge(., b15c, by="RAUMID") 
+
+b17g <- gentriclass(b15g) %>% dplyr::select(1:15)
+b17g$gen.15 <- b17g$gcode
+b17g <- b17g %>% merge(., b17c, by="RAUMID") 
+
+b19g <- gentriclass(b17g) %>% dplyr::select(1:16) 
+b19g$gen.17 <- b19g$gcode
+b19g <- b19g %>% merge(., b19c, by="RAUMID") 
+
+bfinal <- gentriclass(b19g) %>% dplyr::select(1:17)
+bfinal$gen.19 <- bfinal$gcode
+
+# changing time variables from numeric to date
+bfinal[, 2:7][bfinal[, 2:7] == 0] <- NA
+bfinal[2:7] <- as.data.frame(lapply(bfinal[2:7], function(x) as.Date(x, origin = '1970-01-01')))
+
+# adding new columns measuring time spent in each stage of gentrif --------
+
+s0 <- bfinal %>% filter(!is.na(bfinal$gcode1yr) && !is.na(bfinal$gcode0yr))
+s0$tg0 <- time_length(difftime(s0$gcode1yr, s0$gcode0yr), "years")
+s0 <- s0[c(1, 19)]
+
+s1 <- bfinal %>% filter(!is.na(bfinal$gcode2yr))
+s1$tg1 <- time_length(difftime(s1$gcode2yr, s1$gcode1yr), "years")
+s1 <- s1[c(1, 19)]
+
+s2 <- bfinal %>% filter(!is.na(bfinal$gcode3yr))
+s2$tg2 <- time_length(difftime(s2$gcode3yr, s2$gcode2yr), "years")
+s2 <- s2[c(1, 19)]
+
+s3 <- bfinal %>% filter(!is.na(bfinal$gcode4yr))
+s3$tg3 <- time_length(difftime(s3$gcode4yr, s3$gcode3yr), "years")
+s3 <- s3[c(1, 19)]
+
+s4 <- bfinal %>% filter(!is.na(bfinal$gcode5yr))
+s4$tg4 <- time_length(difftime(s4$gcode5yr, s4$gcode4yr), "years")
+s4 <- s4[c(1, 19)]
+
+s5 <- bfinal %>% filter(!is.na(bfinal$gcode5yr))
+s5$tg5 <- time_length(difftime(as.Date("2020-1-1"), s5$gcode5yr), "years")
+s5 <- s5[c(1, 19)]
+
+bfinal <- bfinal %>% left_join(., s0, by=c("RAUMID")) %>%
+  left_join(., s1, by=c("RAUMID")) %>%
+  left_join(., s2, by=c("RAUMID")) %>% 
+  left_join(., s3, by=c("RAUMID")) %>% 
+  left_join(., s4, by=c("RAUMID")) %>%
+  left_join(., s5, by=c("RAUMID"))
+
+save(bfinal, file = "~/Desktop/Code/Thesis/Data_for_Analysis/bfinal.Rdata")
+
+# prepping dataframes for wide-long conversion ----------------------------
+
+# foreigner dataframe wide format
+b03ca <- b03c %>% dplyr::select(c(1, 7)) %>% rename(aus.03 = aus_noneu)
+b05ca <- b05c %>% dplyr::select(c(1, 9)) %>% rename(aus.05 = aus_noneu)
+b07ca <- b07c %>% dplyr::select(c(1, 9)) %>% rename(aus.07 = aus_noneu)
+b09ca <- b09c %>% dplyr::select(c(1, 9)) %>% rename(aus.09 = aus_noneu)
+b11ca <- b11c %>% dplyr::select(c(1, 9)) %>% rename(aus.11 = aus_noneu)
+b13ca <- b13c %>% dplyr::select(c(1, 9)) %>% rename(aus.13 = aus_noneu)
+b15ca <- b15c %>% dplyr::select(c(1, 9)) %>% rename(aus.15 = aus_noneu)
+b17ca <- b17c %>% dplyr::select(c(1, 9)) %>% rename(aus.17 = aus_noneu)
+b19ca <- b19c %>% dplyr::select(c(1, 9)) %>% rename(aus.19 = aus_noneu)
+
+baus <- left_join(b03ca, b05ca, by=c("RAUMID")) %>% 
+  left_join(., b07ca, by=c("RAUMID")) %>% 
+  left_join(., b09ca, by=c("RAUMID")) %>% 
+  left_join(., b11ca, by=c("RAUMID")) %>% 
+  left_join(., b13ca, by=c("RAUMID")) %>% 
+  left_join(., b15ca, by=c("RAUMID")) %>% 
+  left_join(., b17ca, by=c("RAUMID")) %>% 
+  left_join(., b19ca, by=c("RAUMID")) 
+
 bgaa03 <- b03c %>% dplyr::select(c(1, 8)) %>% rename(gaa03 = gaa)
 bgaa05 <- b05c %>% dplyr::select(c(1, 12)) %>% rename(gaa05 = gaa)
 bgaa07 <- b05c %>% dplyr::select(c(1, 12)) %>% rename(gaa07 = gaa)
@@ -313,8 +338,102 @@ bwa <- left_join(bwa03, bwa05, by="RAUMID") %>%
   left_join(., bwa15, by="RAUMID") %>% 
   left_join(., bwa17, by="RAUMID") %>% 
   left_join(., bwa19, by="RAUMID")
-  
-save(bfinal, baus, bgaa, beu, bwa, file = "~/Desktop/Code/Thesis/Data_for_Analysis/bfinal.Rdata")
+
+# welfare dataframe wide format
+b05welf <- b05c %>% dplyr::select(c(1, 10)) %>% rename(welf.05 = welf)
+b07welf <- b07c %>% dplyr::select(c(1, 10)) %>% rename(welf.07 = welf)
+b09welf <- b09c %>% dplyr::select(c(1, 10)) %>% rename(welf.09 = welf)
+b11welf <- b11c %>% dplyr::select(c(1, 10)) %>% rename(welf.11 = welf)
+b13welf <- b13c %>% dplyr::select(c(1, 10)) %>% rename(welf.13 = welf)
+b15welf <- b15c %>% dplyr::select(c(1, 10)) %>% rename(welf.15 = welf)
+b17welf <- b17c %>% dplyr::select(c(1, 10)) %>% rename(welf.17 = welf)
+b19welf <- b19c %>% dplyr::select(c(1, 10)) %>% rename(welf.19 = welf)
+
+bwelf <- left_join(b05welf, b07welf, by=c("RAUMID")) %>% 
+  left_join(., b09welf, by=c("RAUMID")) %>% 
+  left_join(., b11welf, by=c("RAUMID")) %>% 
+  left_join(., b13welf, by=c("RAUMID")) %>% 
+  left_join(., b15welf, by=c("RAUMID")) %>% 
+  left_join(., b17welf, by=c("RAUMID")) %>% 
+  left_join(., b19welf, by=c("RAUMID")) 
+
+# unemployment dataframe wide format
+b05unemp <- b05c %>% dplyr::select(c(1, 11)) %>% rename(unemp.05 = unemp)
+b07unemp <- b07c %>% dplyr::select(c(1, 11)) %>% rename(unemp.07 = unemp)
+b09unemp <- b09c %>% dplyr::select(c(1, 11)) %>% rename(unemp.09 = unemp)
+b11unemp <- b11c %>% dplyr::select(c(1, 11)) %>% rename(unemp.11 = unemp)
+b13unemp <- b13c %>% dplyr::select(c(1, 11)) %>% rename(unemp.13 = unemp)
+b15unemp <- b15c %>% dplyr::select(c(1, 11)) %>% rename(unemp.15 = unemp)
+b17unemp <- b17c %>% dplyr::select(c(1, 11)) %>% rename(unemp.17 = unemp)
+b19unemp <- b19c %>% dplyr::select(c(1, 11)) %>% rename(unemp.19 = unemp)
+
+bunemp <- left_join(b05unemp, b07unemp, by=c("RAUMID")) %>% 
+  left_join(., b09unemp, by=c("RAUMID")) %>% 
+  left_join(., b11unemp, by=c("RAUMID")) %>% 
+  left_join(., b13unemp, by=c("RAUMID")) %>% 
+  left_join(., b15unemp, by=c("RAUMID")) %>% 
+  left_join(., b17unemp, by=c("RAUMID")) %>% 
+  left_join(., b19unemp, by=c("RAUMID")) 
+
+# 18-25s dataframe wide format
+b05E_18U25 <- b05c %>% dplyr::select(c(1, 3)) %>% rename(E_18U25.05 = E_18U25)
+b07E_18U25 <- b07c %>% dplyr::select(c(1, 3)) %>% rename(E_18U25.07 = E_18U25)
+b09E_18U25 <- b09c %>% dplyr::select(c(1, 3)) %>% rename(E_18U25.09 = E_18U25)
+b11E_18U25 <- b11c %>% dplyr::select(c(1, 3)) %>% rename(E_18U25.11 = E_18U25)
+b13E_18U25 <- b13c %>% dplyr::select(c(1, 3)) %>% rename(E_18U25.13 = E_18U25)
+b15E_18U25 <- b15c %>% dplyr::select(c(1, 3)) %>% rename(E_18U25.15 = E_18U25)
+b17E_18U25 <- b17c %>% dplyr::select(c(1, 3)) %>% rename(E_18U25.17 = E_18U25)
+b19E_18U25 <- b19c %>% dplyr::select(c(1, 3)) %>% rename(E_18U25.19 = E_18U25)
+
+bE_18U25 <- left_join(b05E_18U25, b07E_18U25, by=c("RAUMID")) %>% 
+  left_join(., b09E_18U25, by=c("RAUMID")) %>% 
+  left_join(., b11E_18U25, by=c("RAUMID")) %>% 
+  left_join(., b13E_18U25, by=c("RAUMID")) %>% 
+  left_join(., b15E_18U25, by=c("RAUMID")) %>% 
+  left_join(., b17E_18U25, by=c("RAUMID")) %>% 
+  left_join(., b19E_18U25, by=c("RAUMID")) 
+
+# 25-55s
+b05E_25U55 <- b05c %>% dplyr::select(c(1, 4)) %>% rename(E_25U55.05 = E_25U55)
+b07E_25U55 <- b07c %>% dplyr::select(c(1, 4)) %>% rename(E_25U55.07 = E_25U55)
+b09E_25U55 <- b09c %>% dplyr::select(c(1, 4)) %>% rename(E_25U55.09 = E_25U55)
+b11E_25U55 <- b11c %>% dplyr::select(c(1, 4)) %>% rename(E_25U55.11 = E_25U55)
+b13E_25U55 <- b13c %>% dplyr::select(c(1, 4)) %>% rename(E_25U55.13 = E_25U55)
+b15E_25U55 <- b15c %>% dplyr::select(c(1, 4)) %>% rename(E_25U55.15 = E_25U55)
+b17E_25U55 <- b17c %>% dplyr::select(c(1, 4)) %>% rename(E_25U55.17 = E_25U55)
+b19E_25U55 <- b19c %>% dplyr::select(c(1, 4)) %>% rename(E_25U55.19 = E_25U55)
+
+bE_25U55 <- left_join(b05E_25U55, b07E_25U55, by=c("RAUMID")) %>% 
+  left_join(., b09E_25U55, by=c("RAUMID")) %>% 
+  left_join(., b11E_25U55, by=c("RAUMID")) %>% 
+  left_join(., b13E_25U55, by=c("RAUMID")) %>% 
+  left_join(., b15E_25U55, by=c("RAUMID")) %>% 
+  left_join(., b17E_25U55, by=c("RAUMID")) %>% 
+  left_join(., b19E_25U55, by=c("RAUMID")) 
+
+# children
+b05E_0U6 <- b05c %>% dplyr::select(c(1, 6)) %>% rename(E_0U6.05 = E_0U6)
+b07E_0U6 <- b07c %>% dplyr::select(c(1, 6)) %>% rename(E_0U6.07 = E_0U6)
+b09E_0U6 <- b09c %>% dplyr::select(c(1, 6)) %>% rename(E_0U6.09 = E_0U6)
+b11E_0U6 <- b11c %>% dplyr::select(c(1, 6)) %>% rename(E_0U6.11 = E_0U6)
+b13E_0U6 <- b13c %>% dplyr::select(c(1, 6)) %>% rename(E_0U6.13 = E_0U6)
+b15E_0U6 <- b15c %>% dplyr::select(c(1, 6)) %>% rename(E_0U6.15 = E_0U6)
+b17E_0U6 <- b17c %>% dplyr::select(c(1, 6)) %>% rename(E_0U6.17 = E_0U6)
+b19E_0U6 <- b19c %>% dplyr::select(c(1, 6)) %>% rename(E_0U6.19 = E_0U6)
+
+bE_0U6 <- left_join(b05E_0U6, b07E_0U6, by=c("RAUMID")) %>% 
+  left_join(., b09E_0U6, by=c("RAUMID")) %>% 
+  left_join(., b11E_0U6, by=c("RAUMID")) %>% 
+  left_join(., b13E_0U6, by=c("RAUMID")) %>% 
+  left_join(., b15E_0U6, by=c("RAUMID")) %>% 
+  left_join(., b17E_0U6, by=c("RAUMID")) %>% 
+  left_join(., b19E_0U6, by=c("RAUMID")) 
+
+save(baus, bgaa, beu, bwa, bwelf, bunemp, bE_18U25, bE_25U55, bE_0U6,
+     file = "~/Desktop/Code/Thesis/Data_for_Analysis/contextvars.Rdata")
+
+
+# creating frequency table of each stage by year --------------------------
 
 t03 <- table(b03g$gcode) %>% as.data.frame
 t05 <- table(b05g$gcode) %>% as.data.frame
@@ -344,3 +463,5 @@ rownames(tfreq) <- tfreq$stage
 tfreq$stage <- NULL
 
 save(tfreq, file= "~/Desktop/Code/Thesis/Data_for_Analysis/gtable.Rdata")
+
+load("~/Desktop/Code/Thesis/Data_for_Analysis/gtable.Rdata")

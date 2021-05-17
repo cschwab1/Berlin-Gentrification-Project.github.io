@@ -9,7 +9,9 @@ load("Data_for_Analysis/einR.Rdata")
 load("Data_for_Analysis/gaadata.Rdata")
 load("Data_for_Analysis/mss.Rdata")
 
-##### merging to one dataset per year 
+
+# merging to one dataset per year  ----------------------------------------
+
 gaa01lor$gml_id <- as.numeric(gaa01lor$gml_id)
 b01 <- left_join(einW01, gaa01lor, by=c("RAUMID" = "gml_id")) %>% 
   mutate(aus_noneu = (((E_A)/(E_E))*100)) %>% 
@@ -63,7 +65,9 @@ rm(einW01, einW03, einW05, einW07, einW09, einW11, einW13, einW15, einW17, einW1
    gaa01lor, gaa03lor, gaa05lor, gaa07lor, gaa09lor, gaa11lor, gaa13lor, gaa15lor, gaa17lor, gaa19lor, gaalorfull, 
    mss_2003, mss_2005, mss_2007, mss_2009, mss_2011, mss_2013, mss_2015, mss_2017, mss_2019)
 
-##### creating change dataframes
+
+# creating change dataframes ----------------------------------------------
+
 b03c <- left_join(b03, b01, by=c("RAUMID")) %>% dplyr::select(1:6, 9, 12:19)
 b03c[2:8] <- b03c[2:8] - b03c[9:15]
 b03c <- b03c[1:8]
@@ -143,9 +147,12 @@ length(n01) = length(n03) = length(n05) = length(n07) = length(n09) = length(n19
 namesdf <- cbind(n01, n03, n05, n07, n09, n11, n13, n15, n17, n19) %>% as.data.frame()
 
 save(b01, b03c, b05c, b07c, b09c, b11c, b13c, b15c, b17c, b19c, namesdf, b03eu, b03wa, file = "~/Desktop/Code/Thesis/Data_for_Analysis/datacomb.Rdata")
+load("~/Desktop/Code/Thesis/Data_for_Analysis/datacomb.Rdata")
 load("Data_for_Analysis/eg.rda")
 
-# separate 10-yr resident dataframe wide-format
+
+# separate 10-yr resident dataframe wide-format ---------------------------
+
 b09d <- b09 %>% dplyr::select(c(1, 10)) %>% rename(pda.09 = PDAU10)
 b11d <- b11 %>% dplyr::select(c(1, 10)) %>% rename(pda.11 = PDAU10)
 b13d <- b13 %>% dplyr::select(c(1, 10)) %>% rename(pda.13 = PDAU10)
@@ -158,4 +165,41 @@ bpdau <- left_join(b09d, b11d, by=c("RAUMID")) %>%
   left_join(., b15d, by=c("RAUMID")) %>% 
   left_join(., b17d, by=c("RAUMID")) %>% 
   left_join(., b19d, by=c("RAUMID"))
+
 save(bpdau, file = "~/Desktop/Code/Thesis/Data_for_Analysis/pdau.Rdata")
+
+# creating population by year wide-format
+b01p <- b09 %>% dplyr::select(c(1, 2)) %>% rename(e.09 = E_E)
+b03p <- b11 %>% dplyr::select(c(1, 2)) %>% rename(e.11 = E_E)
+b05p <- b13 %>% dplyr::select(c(1, 2)) %>% rename(e.13 = E_E)
+b07p <- b13 %>% dplyr::select(c(1, 2)) %>% rename(e.13 = E_E)
+b09p <- b09 %>% dplyr::select(c(1, 2)) %>% rename(e.09 = E_E)
+b11p <- b11 %>% dplyr::select(c(1, 2)) %>% rename(e.11 = E_E)
+b13p <- b13 %>% dplyr::select(c(1, 2)) %>% rename(e.13 = E_E)
+b15p <- b15 %>% dplyr::select(c(1, 2)) %>% rename(e.15 = E_E)
+b17p <- b17 %>% dplyr::select(c(1, 2)) %>% rename(e.17 = E_E)
+b19p <- b19 %>% dplyr::select(c(1, 2)) %>% rename(e.19 = E_E)
+
+b_einwohner <- left_join(b01p, b03p, by=c("RAUMID")) %>% 
+  left_join(., b05p, by=c("RAUMID")) %>% 
+  left_join(., b07p, by=c("RAUMID")) %>% 
+  left_join(., b09p, by=c("RAUMID")) %>% 
+  left_join(., b11p, by=c("RAUMID")) %>% 
+  left_join(., b13p, by=c("RAUMID")) %>% 
+  left_join(., b15p, by=c("RAUMID")) %>% 
+  left_join(., b17p, by=c("RAUMID")) %>% 
+  left_join(., b19p, by=c("RAUMID")) 
+
+save(b_einwohner, file = "~/Desktop/Code/Thesis/Data_for_Analysis/b_einwohner.Rdata")
+
+btotalc <- left_join(b03, b19, by=c("RAUMID")) %>% dplyr::select(1:12, 13:17, 25, 18, 23, 27:29)
+btotalc$ausnoneu <- btotalc$ausnoneu*100
+btotalc$HK_EU15 <- ((btotalc$HK_EU15 / btotalc$E_E.y)*100)
+btotalc[2:12] <- btotalc[2:12] - btotalc[13:23]
+btotalc <- btotalc[1:12]
+names(btotalc) <- names(b05c)
+
+save(btotalc, file="~/Desktop/Code/Thesis/Data_for_Analysis/btotalc.Rdata")
+
+
+

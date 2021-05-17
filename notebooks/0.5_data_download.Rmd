@@ -1,0 +1,77 @@
+---
+title: "0.5_data_downloads"
+output: html_notebook
+---
+
+# Setup
+```{r results='hide', warning=FALSE, message=FALSE}
+library(tidyverse)
+library(sf)
+library(rgdal)
+library(lubridate)
+library(lazyeval)
+setwd("~/Desktop/Code/Thesis")
+```
+
+# FIS_download_function
+```{r results='hide', warning=FALSE, message=FALSE}
+get_X_Y_coordinates <- function(x) {
+  sftype <- as.character(sf::st_geometry_type(x, by_geometry = FALSE))
+  if(sftype == "POINT") {
+    xy <- as.data.frame(sf::st_coordinates(x))
+    dplyr::bind_cols(x, xy)
+  } else {
+    x
+  }
+}
+
+sf_fisbroker <- function(url) {
+  typenames <- basename(url)
+  url <- httr::parse_url(url)
+  url$query <- list(service = "wfs",
+                    version = "2.0.0",
+                    request = "GetFeature",
+                    srsName = "EPSG:25833",
+                    TYPENAMES = typenames)
+  request <- httr::build_url(url)
+  print(request)
+  out <- sf::read_sf(request)
+  out <- sf::st_transform(out, 3035)
+  out <- get_X_Y_coordinates(out)
+  out <- st_as_sf(as.data.frame(out))
+  return(out)
+}
+```
+
+# Downloading shapefiles
+```{r}
+##### Berlin polygon
+load(url("https://userpage.fu-berlin.de/soga/300/30100_data_sets/berlin_district.RData"))
+berlin.sf <- st_transform(berlin.sf, 3035)
+
+##### Verkehrzehlen
+vz <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_vz") 
+vz <- vz %>% separate(gml_id, c("s_vz.", "gml_id"), sep=5) %>% 
+  dplyr::select("gml_id", "geometry")
+vz$s_vz. <- NULL
+
+##### LOR
+lor <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_lor_plan")
+lor <- lor %>% 
+  separate(gml_id, c("s_lor_plan", "gml_id"), sep=11) %>%
+  dplyr::select("gml_id", "PLANUNGSRAUM", "geometry")
+
+##### Erhaltungsgebiete
+eg <- sf_fisbroker("https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_erhaltgeb_em")
+eg <- eg
+eg <- eg %>% separate(gml_id, c("gml_id", "ID"), sep=17)
+eg$ID <- eg$ID %>% as.numeric()
+eg$F_IN_KRAFT <- as.Date(eg$F_IN_KRAFT, format = "%d.%m.%Y")
+
+##### Saving polygons for faster use
+save(berlin.sf, file = "~/Desktop/Code/Thesis/Data_for_Analysis/berlin_sf.Rdata")
+save(vz, file = "~/Desktop/Code/Thesis/Data_for_Analysis/vz.Rdata")
+save(lor, file="~/Desktop/Code/Thesis/Data_for_Analysis/lor.Rdata")
+save(eg, file="~/Desktop/Code/Thesis/Data_for_Analysis/eg.Rdata")
+```
+

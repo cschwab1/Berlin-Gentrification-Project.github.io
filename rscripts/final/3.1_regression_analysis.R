@@ -1,5 +1,5 @@
 ########################################
-# Thesis Script 3.2: DID Analysis
+# Thesis Script 3.2: regression analysis
 ########################################
 
 library(did)
@@ -158,7 +158,6 @@ d12 <- merge(d1a, d2a, by='County')
 hh <- merge(hh, d12, by='County')
 y <- matrix(hh$houseValue)
 X <- cbind(1, hh$age, hh$nBedrooms)
-
 
 # survival analysis on time to reach next stage
 library(survival)

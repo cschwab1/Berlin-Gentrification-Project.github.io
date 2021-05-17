@@ -1,0 +1,270 @@
+---
+title: "3.3 Survival Analysis Notebook"
+output: html_notebook
+---
+
+#Setup 
+###packages, working directory
+
+```{r setup}
+setwd("~/Desktop/Code/Thesis")
+library(tidyverse)
+library(lubridate)
+library(survival)
+library(survminer)
+library(GGally)
+library(ggplot2)
+library(ggfortify)
+library(rlist)
+library(rms)
+library(broom)
+library(survtools)
+library(Epi)
+library(gridGraphics)
+library(grid)
+library(gridExtra)
+library(gtable)
+```
+
+#Data Loading
+### load data
+
+```{r}
+load("~/Desktop/Code/Thesis/Data_for_Analysis/bfinal.Rdata")
+load("~/Desktop/Code/Thesis/Data_for_Analysis/eg.rda")
+
+eg_lor_full$ID <- as.numeric(eg_lor_full$ID)
+data <- left_join(bfinal[c(1:7)], eg_lor_full[c(1, 3:4, 16, 18)], by=c("RAUMID" = "ID"))
+```
+
+### converting to long event format
+
+```{r}
+# converting to long event format -----------------------------------------
+start <- as.Date("2000-12-31")
+data$start_S1 <- time_length(difftime(data$gcode1yr, start), "years")
+data$start_S2 <- time_length(difftime(data$gcode2yr, start), "years")
+data$start_S3 <- time_length(difftime(data$gcode3yr, start), "years")
+data$start_S4 <- time_length(difftime(data$gcode4yr, start), "years")
+data$start_S5 <- time_length(difftime(data$gcode5yr, start), "years")
+data <- dplyr::select(data, c(1:7, 12:16, 8:11))
+```
+
+### creating event intervals for time between stages 1-2, 2-3, 3-4, 4-5.
+```{r}
+stage1 <- data[c(1, 8:9)] %>% 
+  dplyr::rename(startTime = 2, endTime = 3) %>% 
+  filter(!is.na(startTime))
+stage1$event <- ifelse(!is.na(stage1$endTime), c("tg2"), c("cens"))
+
+stage2 <- data[c(1, 9:10)] %>% 
+  rename(startTime = 2, endTime = 3) %>% 
+  filter(!is.na(startTime))
+stage2$event <- ifelse(!is.na(stage2$endTime), c("tg3"), c("cens"))
+
+stage3 <- data[c(1, 10:11)] %>% 
+  rename(startTime = 2, endTime = 3) %>% 
+  filter(!is.na(startTime))
+stage3$event <- ifelse(!is.na(stage3$endTime), c("tg4"), c("cens"))
+
+stage4 <- data[c(1, 11:12)] %>% 
+  rename(startTime = 2, endTime = 3) %>% 
+  filter(!is.na(startTime))
+stage4$event <- ifelse(!is.na(stage4$endTime), c("tg5"), c("cens"))
+
+dataL <- rbind(stage1, stage2, stage3, stage4) %>% group_by(RAUMID)
+
+end <- as.Date("2020-01-01")
+dataL$endTime <- ifelse(
+  is.na(dataL$endTime), time_length(difftime(end, start), "years"), dataL$endTime
+)
+
+dataL$event <- as.factor(dataL$event)
+
+labels=c(0:4)
+dataL$event_num <- as.numeric(as.character(factor(dataL$event, labels=c(0:4))))
+
+rm(stage1, stage2, stage3, stage4, bfinal, eg_lor_full)
+```
+
+###creating treatment dummy variable based on whether policy was active during the event interval
+
+```{r}
+data$treatment_starttime <- time_length(difftime(data$F_IN_KRAFT.x, start), "years")
+
+dataL <- left_join(dataL, data[c(1, 17)], by=c("RAUMID")) %>% tibble::rowid_to_column(., "ID")
+
+dataL$treat <- ifelse(
+  dataL$startTime > dataL$treatment_starttime, 1, ifelse(
+    dataL$endTime > dataL$treatment_starttime, 1, 0
+  )
+)
+
+dataL[, 8][is.na(dataL[, 8])] <- 0
+```
+
+### creating treatment dummy variable based on whether area was within 500 meters of a protection area during event interval
+
+```{r}
+# treatment dummy variable: method correct method 
+data$treatment_starttime_500 <- time_length(difftime(data$F_IN_KRAFT.y, start), "years")
+
+dataL <- left_join(dataL, data[c(1, 18)], by=c("RAUMID"))
+dataL$treat500 <- ifelse(
+  dataL$startTime > dataL$treatment_starttime_500, 1, ifelse(
+    dataL$endTime > dataL$treatment_starttime_500, 1, 0
+  )
+)
+dataL[, 10][is.na(dataL[, 10])] <- 0
+```
+  
+# basic surv curve
+## fitting
+Creating basic survfit object
+```{r}
+mfit1 <- survfit(Surv(startTime, endTime, event) ~treat, id=ID, data=dataL)
+print(mfit1)
+```
+
+##printing results stuff
+```{r}
+summary(mfit1)
+summary(mfit1)$table
+write.table((summary(mfit1)$table), file = "~/Desktop/Code/Thesis/misc_plots/survtable.txt", sep = ",", quote = FALSE, row.names = T)
+```
+
+```{r}
+fit <- mfit1
+d <- data.frame(time = fit$time,
+                  n.risk = fit$n.risk,
+                  n.event = fit$n.event,
+                  n.censor = fit$n.censor,
+                  surv = fit$pstate,
+                  upper = fit$upper,
+                  lower = fit$lower
+                  )
+names(fit)
+```
+
+## plotting
+#### Epi: makes facets 
+```{r}
+# [MUST COPY PASTE INTO CONSOLE]
+# legend("top", c("untreated", "treated"), col=c("red", "blue"), pch=0, pt.cex = 0.5, cex = .7, box.lty=1, box.lwd=1, box.col="black")
+plotCIF(mfit1, col = c("red", "blue"),
+        event=1, 
+        main = "Progression Stage 1 -> 2", 
+        xlab = "Time (Years)",
+        ylab = "Cumulative Incidence", 
+        ylim = c(0, 1))
+grid.echo()
+a <- grid.grab()
+
+p2 <- plotCIF(mfit1, col = c("red", "blue"),
+        event=2, 
+        main = "Progression Stage 2 -> 3", 
+        xlab = "Time (Years)",
+        ylab = "Cumulative Incidence", 
+        ylim = c(0, .5))
+grid.echo()
+b <- grid.grab()
+
+p3 <- plotCIF(mfit1, col = c("red", "blue"),
+        event=3, 
+        main = "Progression Stage 3 -> 4", 
+        xlab = "Time (Years)",
+        ylab = "Cumulative Incidence", 
+        ylim = c(0, .2))
+grid.echo()
+c <- grid.grab()
+
+p4 <- plotCIF(mfit1, col = c("red", "blue"),
+        event=4, 
+        main = "Progression Stage 4 -> 5", 
+        xlab = "Time (Years)",
+        ylab = "Cumulative Incidence", 
+        ylim = c(0, .1))
+grid.echo()
+d <- grid.grab()
+```
+```{r}
+z <- rbind(a, b, c, d)
+z$widths <- unit.pmax(a$widths, b$widths, c$widths, d$widths)
+```
+
+#### [ugly] base
+```{r}
+plot(mfit1, col=c(1,2), xscale=12, mark.time=FALSE, lwd=1, 
+xlab="Years post diagnosis", ylab="Survival")
+legend("topright", c("treatment=0", "treatment=1"), col=1:2, lwd=2, bty='n')
+```
+
+```{r}
+plot(mfit1,
+     mark.time=FALSE,
+     lwd=2, 
+     xscale=12, 
+     col = topo.colors(4), 
+     xlab="Years post in stage x",
+     ylab="Probability of being in state x according to time")
+legend("topright", col=n.risk, legend=c("Stage 1-2", "Stage 2-3", "Stage 3-4", "Stage 4-5"))
+```
+
+
+####competing risks
+```{r}
+ggcompetingrisks(mfit1)
+```
+
+#### [don't work] fancy `survminer` plots
+```{r}
+tidy_null <- tidy(nullsurv)
+
+```
+
+
+```{r}
+print(mfit2, rmean=240, scale=12)
+survminer::ggcompetingrisks(nullsurv)
+
+surv_summary(nullsurv)
+
+test <- coxph(Surv(startTime, endTime, event) ~ as.factor(treatedduring), id=RAUMID, data=dataL)
+
+survminer::ggcoxdiagnostics(test)
+ggcoxfunctional(test, data=dataL, id=RAUMID)
+survminer::ggcox
+ggcoxzph(cox.zph(test))
+```
+
+
+# Cox model
+
+## fitting
+```{r}
+cfit <- coxph(Surv(startTime, endTime, event) ~ treat, id=ID, data=dataL)
+cfit
+summary(cfit)
+cfit$coefficients
+```
+
+```{r}
+HR <- round(exp(coef(cfit)), 2)
+CI <- round(exp(confint(cfit)), 2)
+P <- round(coef(summary(cfit))[,5], 3)
+# Names the columns of CI
+colnames(CI) <- c("Lower", "Higher")
+# Bind columns together as dataset
+table2 <- as.data.frame(cbind(HR, CI, P))
+table2
+```
+
+##plot
+
+### base
+```{r}
+plot(cfit)
+```
+
+
+
