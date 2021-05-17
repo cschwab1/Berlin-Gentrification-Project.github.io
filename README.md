@@ -12,3 +12,14 @@ The organization of this repository is a bit messy, but is essentially as follow
 * __`Data_for_Analysis`__ is where I kept the results of each progressive script for easy loading. 
 
 If you have any feedback or questions about this project, don't hesitate to email me at cschwab1@uchicago.edu. 
+
+# A collapsible section with markdown
+<details>
+  <summary>Click to expand!</summary>
+  
+  ## Heading
+  1. A numbered
+  2. list
+     * With some
+     * Sub bullets
+</details>
