@@ -13,6 +13,8 @@ library(lubridate)
 codentimedf <- data.frame(gcode = 0, gcode0yr = 0, gcode1yr = 0, gcode2yr = 0, gcode3yr = 0, gcode4yr = 0, gcode5yr = 0)
 b01 <- merge(b01, codentimedf) %>% dplyr::select(c(1, 10:15, 2:9))
 
+#xyc123 
+
 b01["year"] <- as.Date("2001-12-31")
 b03c["year"] <- as.Date("2002-12-31")
 b05c["year"] <- as.Date("2004-12-31")
